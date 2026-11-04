@@ -27,11 +27,19 @@ if ($action === 'init') {
     query(database(), 'INSERT INTO tasks(id,spec,priority,required_bytes) VALUES(?,?,?,?)',
         [$spec['task_id'], $raw, (float)($argv[3] ?? 0), $spec['required_bytes']]);
     echo "Queued {$spec['task_id']}\n";
+} elseif ($action === 'reserve') {
+    $worker = $argv[2] ?? '';
+    $count = filter_var($argv[3] ?? '', FILTER_VALIDATE_INT, ['options' => ['min_range' => 0, 'max_range' => 10000]]);
+    if (!preg_match('/^[a-f0-9]{32}$/D', $worker) || $count === false) throw new RuntimeException('Worker ID and reserve 0..10000 required');
+    $db = database();
+    if (!query($db, 'SELECT id FROM workers WHERE id=?', [$worker])->fetchColumn()) throw new RuntimeException('Unknown worker');
+    query($db, 'INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value', ['reserve:' . $worker, (string)$count]);
+    echo "Worker will leave {$count} fields ready for others\n";
 } elseif ($action === 'results') {
     foreach (query(database(), 'SELECT task_id,result,verified FROM results') as $row) {
         echo json_encode(['task_id' => $row['task_id'], 'verified' => (bool)$row['verified'],
             'result' => json_decode($row['result'], true)], JSON_UNESCAPED_SLASHES), "\n";
     }
 } else {
-    fwrite(STDERR, "Usage: php admin.php init | add task.json [priority] | results\n"); exit(2);
+    fwrite(STDERR, "Usage: php admin.php init | add task.json [priority] | reserve worker_id count | results\n"); exit(2);
 }

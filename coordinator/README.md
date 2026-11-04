@@ -22,6 +22,11 @@ packages them, rather than deriving footprints or selecting on image pixels.
 Host the resulting ZIP at the declared HTTPS URL. Keep the JSON canonical;
 `make_task.py` writes the required representation. An example is in `examples/`.
 
+Keep a reserve for visitors by running `php admin.php reserve WORKER_ID 4` for
+the operator's worker. It can claim new work only while more than four fields
+are ready; other workers remain unrestricted. Claims check this atomically,
+and existing leases continue normally. Set the count to zero to remove the limit.
+
 For Apache, include `.htaccess` to disable directory listings, preserve bearer
 authorization, and deny HTTP access to administrative files. For other servers,
 set equivalent rules. `admin.php` additionally rejects non-CLI execution. Back

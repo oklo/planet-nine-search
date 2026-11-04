@@ -190,3 +190,54 @@ def test_voluntary_releases_do_not_exhaust_failure_budget(coordinator):
     assert claim(coordinator, pair).json()["task"] == task
     assert call(coordinator, "release", {**body, "failed": True}, pair[0]).status_code == 200
     assert coordinator[1]("SELECT state,failures FROM tasks")[0] == ("pending", 1)
+
+
+def reserve(service, pair, count):
+    import hashlib
+    import os
+
+    worker_id = service[1](
+        "SELECT id FROM workers WHERE token_hash=?", [hashlib.sha256(pair[0].encode()).hexdigest()]
+    )[0][0]
+    database = service[1]("PRAGMA database_list")[0][2]
+    admin = Path(__file__).resolve().parents[1] / "coordinator/admin.php"
+    return subprocess.run(
+        [shutil.which("php"), str(admin), "reserve", worker_id, str(count)],
+        env=dict(os.environ, P9_DATABASE=database),
+        capture_output=True,
+        text=True,
+    )
+
+
+def test_operator_reserve_preserves_visitors_and_existing_leases(coordinator):
+    operator, visitor = worker(coordinator), worker(coordinator)
+    assert reserve(coordinator, operator, 1).returncode == 0
+    assert reserve(coordinator, operator, -1).returncode != 0
+    first = seed(coordinator, 1, priority=2)
+    assert claim(coordinator, operator).json()["task"] is None
+    seed(coordinator, 2)
+    assert claim(coordinator, operator).json()["task"] == first
+    # A retry of an existing lease still succeeds when the pool is at its floor.
+    assert claim(coordinator, operator).json()["task"] == first
+    assert claim(coordinator, visitor).json()["task"] is not None
+    coordinator[1]("UPDATE tasks SET expires=0")
+    assert claim(coordinator, operator).json()["task"] == first
+    body = {"task_id": first["task_id"], "lease_token": operator[1]}
+    assert call(coordinator, "release", body, operator[0]).status_code == 200
+    coordinator[1]("DELETE FROM tasks WHERE id<>?", [first["task_id"]])
+    assert claim(coordinator, operator).json()["task"] is None
+    assert reserve(coordinator, operator, 0).returncode == 0
+    assert claim(coordinator, operator).json()["task"] == first
+
+
+def test_concurrent_operator_claims_cannot_drain_the_reserve(coordinator):
+    operators = [worker(coordinator) for _ in range(3)]
+    for pair in operators:
+        assert reserve(coordinator, pair, 4).returncode == 0
+    for number in range(1, 6):
+        seed(coordinator, number)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        responses = list(executor.map(lambda pair: claim(coordinator, pair), operators))
+    assert all(r.status_code == 200 for r in responses)
+    assert sum(r.json()["task"] is not None for r in responses) == 1
+    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='pending'")[0][0] == 4

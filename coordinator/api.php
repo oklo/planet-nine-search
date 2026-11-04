@@ -41,6 +41,10 @@ function dispatch(PDO $db, string $action, array $body): array {
             $job = query($db, "SELECT * FROM tasks WHERE state='leased' AND worker_id=?", [$worker['id']])->fetch(PDO::FETCH_ASSOC);
             if ($job && !hash_equals($job['lease_hash'], $hash)) abort_request(409, 'Worker already has an active claim');
             if (!$job) {
+                $reserve = (int) query($db, 'SELECT value FROM settings WHERE key=?', ['reserve:' . $worker['id']])->fetchColumn();
+                if ($reserve > 0 && (int) query($db, "SELECT COUNT(*) FROM tasks WHERE state='pending'")->fetchColumn() <= $reserve) {
+                    return ['task' => null, 'retry_after' => 300];
+                }
                 $job = query($db, "SELECT * FROM tasks WHERE state='pending' AND required_bytes<=? ORDER BY priority DESC,id LIMIT 1", [$budget])->fetch(PDO::FETCH_ASSOC);
                 if (!$job) return ['task' => null, 'retry_after' => 300];
                 query($db, "UPDATE tasks SET state='leased',worker_id=?,lease_hash=?,expires=?,attempts=attempts+1 WHERE id=?",
