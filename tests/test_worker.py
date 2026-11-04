@@ -1,0 +1,111 @@
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import pytest
+import requests
+
+from p9search import worker
+from p9search.storage import DiskBudget, read_json, write_json
+
+from .test_tasks import specification
+
+
+def test_stopping_a_search_waits_for_actual_process_exit():
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True
+    )
+    try:
+        worker.stop_child(child)
+        assert child.poll() is not None
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+
+
+def test_lost_submission_acknowledgement_retains_exact_claim_and_result(tmp_path):
+    write_json(tmp_path / "result.json", {"task_id": "example", "state": "searched"})
+
+    class LostReply:
+        def lease_body(self, **extra):
+            return {"lease_token": "private", **extra}
+
+        def request(self, action, body):
+            assert action == "submit"
+            raise requests.Timeout("acknowledgement lost")
+
+        def clear_claim(self):
+            raise AssertionError("An unacknowledged claim must remain retryable")
+
+    with pytest.raises(requests.Timeout):
+        worker.submit(LostReply(), tmp_path)
+    assert read_json(tmp_path / "result.json") == {"task_id": "example", "state": "searched"}
+    assert not (tmp_path / "submission.json").exists()
+
+
+def test_lost_lease_stops_child_and_never_submits(tmp_path, monkeypatch):
+    import hashlib
+
+    from p9search.storage import canonical
+
+    spec = specification()
+    actions = []
+
+    class LeaseLost:
+        credentials = {}
+
+        def __init__(self, *args):
+            self.credentials = {}
+
+        def register(self, name):
+            pass
+
+        def save(self):
+            pass
+
+        def clear_claim(self):
+            self.credentials.clear()
+
+        def lease_body(self, **extra):
+            return extra
+
+        def request(self, action, body):
+            actions.append(action)
+            if action == "claim":
+                return {
+                    "task": spec,
+                    "task_id": spec["task_id"],
+                    "lease_seconds": 1800,
+                    "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
+                }
+            if action == "submit":
+                raise AssertionError("Lost lease must never submit")
+            return {"released": True}
+
+    class Child:
+        returncode = None
+
+        def poll(self):
+            return self.returncode
+
+    child = Child()
+    clock = iter([0.0, 0.0, 1801.0])
+    monkeypatch.setattr(worker, "Client", LeaseLost)
+    monkeypatch.setattr(worker.subprocess, "Popen", lambda *a, **k: child)
+    monkeypatch.setattr(worker.time, "monotonic", lambda: next(clock))
+    monkeypatch.setattr(worker, "stop_child", lambda p: setattr(p, "returncode", -15))
+    args = SimpleNamespace(
+        directory=tmp_path,
+        coordinator="https://example.org/api",
+        name="test",
+        continuous=False,
+        max_disk_gb=2,
+        reserve_gb=0,
+        device="cpu",
+        threads=1,
+    )
+    with pytest.raises(RuntimeError, match="Lease"):
+        worker.work(args, DiskBudget(tmp_path, 2**30, 0))
+    assert child.returncode == -15
+    assert actions == ["claim", "release"]

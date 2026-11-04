@@ -1,0 +1,42 @@
+[build-system]
+requires = ["hatchling>=1.26,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "planet-nine-search"
+version = "0.1.0"
+description = "Coordinated searches for slow moving sources in TESS images"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = "MIT"
+authors = [{name = "Greg Laughlin"}]
+dependencies = [
+  "numpy>=1.26,<3", "scipy>=1.13,<2", "torch>=2.5,<3",
+  "astropy>=6,<8", "tesscube>=1.2,<2", "lkprf>=1.1,<2",
+  "requests>=2.32,<3", "tqdm>=4.66,<5",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1", "build>=1.2,<2"]
+
+[project.scripts]
+p9 = "p9search.cli:main"
+
+[project.urls]
+Repository = "https://github.com/oklo/planet-nine-search"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/p9search"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/coordinator", "/tools", "/examples", "/docs", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/pyproject.toml"]
