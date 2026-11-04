@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="description" content="Planet Nine search coordination and TESS field coverage.">
-  <title>Planet Nine · search coordination — oklo</title>
+  <meta name="description" content="planet nine search coordination and TESS field coverage.">
+  <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
   <link rel="stylesheet" href="map.css">
   <script src="map.js" defer></script>
@@ -26,12 +26,17 @@
   <main id="primary-content" class="site-main" tabindex="-1">
     <header class="page-heading">
       <p class="eyebrow">TESS / search coordination</p>
-      <h1>Planet Nine</h1>
-      <p class="intro">A shared search, one field at a time.</p>
+      <h1>planet nine</h1>
+      <p class="intro">A coordinated search</p>
       <p id="snapshot-time" class="small">Loading the latest published search map…</p>
     </header>
     <div id="load-error" role="alert" hidden>The search map could not load. Please reload the page.</div>
     <noscript><p>The interactive map needs JavaScript. The <a href="snapshot.json">search snapshot</a> remains available to download.</p></noscript>
+    <div class="expectation-metrics" aria-label="Planet expectation estimates">
+      <div><strong id="recoverable-expectation">—</strong><span>expectation recoverable</span><small>100 machine-day benchmark projection</small></div>
+      <div><strong id="recovered-expectation">—</strong><span>expectation recovered</span><small>accumulated injection-based sensitivity</small></div>
+    </div>
+    <p class="expectation-caption small">Fractions of one planet in expectation, assuming P(planet nine exists) = 0.2. Sensitivity estimates, not discoveries.</p>
     <div class="metrics" aria-label="Search snapshot totals">
       <div><strong id="searched-count">—</strong><span>fields searched</span></div>
       <div><strong id="followup-count">—</strong><span>flags under review</span></div>
@@ -57,7 +62,7 @@
       </div>
       <div class="map-frame">
         <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map" aria-describedby="map-help">
-          <title>Planet Nine search fields</title>
+          <title>planet nine search fields</title>
           <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons or field selector to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
@@ -97,22 +102,24 @@
         </div>
       </section>
       <section aria-labelledby="queue-heading">
-        <h2 id="queue-heading">Coordinate a search</h2>
+        <h2 id="queue-heading">Execute a search</h2>
         <p id="queue-status" class="queue-status" role="status">Checking the shared queue…</p>
         <p class="small" id="queue-time"></p>
-        <p>Workers claim a field from oklo.org, search locally, and return a result for review.</p>
+        <p>Workers claim a prepared field from oklo.org, search locally, and return a result for review.</p>
         <a class="start-link" href="https://github.com/oklo/planet-nine-search#readme">Get the search package <span aria-hidden="true">↗</span></a>
-        <p class="small">Queue counts refresh every minute. Map coverage updates when a new reviewed snapshot is published.</p>
+        <p class="small">“Ready to claim” counts prepared work packages, not all remaining sky fields. Fields enter the queue after geometry and catalog checks. Counts refresh every minute; the map uses a dated snapshot.</p>
       </section>
     </div>
     <details class="map-notes">
       <summary>Reading the map</summary>
       <p>Purple shading is the density of 21,740 surviving reference orbits at the 2018 reference epoch, smoothed by 2°. It is not a posterior updated by this search. Right ascension increases to the left; the ecliptic uses J2000.</p>
       <p>Outlines are sector image footprints, including overlapping and unsearched pixels. A completed search does not imply uniform depth or an excluded patch of sky. Injection recovery determines sensitivity; unresolved flags are not confirmed planets.</p>
+      <p>Zoomed field labels show the faintest recovered injection and the unresolved candidate count across the searched sectors. Missed injections and uncalibrated depths are marked explicitly; a dash means candidates were not assessed. T denotes TESS magnitude and V visual magnitude. Click a field for recovery counts at each tested magnitude.</p>
       <p id="proxy-note"></p>
+      <p id="forecast-note"></p>
       <p><a href="snapshot.json" download>Download the map snapshot (JSON)</a></p>
     </details>
   </main>
-  <footer class="site-footer"><div class="band"><span>oklo · Planet Nine search</span><span>Unlinked preview</span></div></footer>
+  <footer class="site-footer"><div class="band"><span>oklo · planet nine search</span><span>Unlinked preview</span></div></footer>
 </body>
 </html>

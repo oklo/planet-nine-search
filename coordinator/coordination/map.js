@@ -11,6 +11,7 @@ const STATES = {
 const $ = id => document.getElementById(id);
 const sky = $('sky');
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
+const MAX_ZOOM = 512;
 let data;
 let view = {x: 0, y: 0, width: 1000, height: 500};
 let selected = null;
@@ -71,6 +72,21 @@ function curve(points, attributes, parent) {
   return svgNode('path', {d: skyPath(points), fill: 'none', 'vector-effect': 'non-scaling-stroke', ...attributes}, parent);
 }
 
+function candidateLabel(field) {
+  return Number.isInteger(field.candidate_count)
+    ? `${field.candidate_count} candidate${field.candidate_count === 1 ? '' : 's'}`
+    : 'Candidates: —';
+}
+
+function insidePolygon([x, y], polygon) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i], [xj, yj] = polygon[j];
+    if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
 function drawMap() {
   for (let ra = 0; ra <= 360; ra += 30) {
     curve(Array.from({length: 181}, (_, i) => [ra, i - 90]), {stroke: '#d9d4e0', 'stroke-width': .6}, $('graticule'));
@@ -83,7 +99,7 @@ function drawMap() {
   for (const field of data.fields) {
     const state = STATES[field.state];
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
-    svgNode('title', {}, group).textContent = `${field.code} · ${state.label}`;
+    svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
     const paths = field.footprints.map(footprint => svgNode('path', {
       d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: state.color,
       'fill-opacity': .07, 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
@@ -93,15 +109,23 @@ function drawMap() {
     const [x, y] = project(field.ra_deg, field.dec_deg);
     const dot = svgNode('circle', {cx: x, cy: y, r: 3, fill: state.style ? '#fff' : state.color,
       stroke: state.color, 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke'}, group);
-    const label = svgNode('text', {x, y, fill: state.color, 'data-code': field.code}, $('field-labels'));
-    label.textContent = field.code;
-    fieldNodes.set(field.code, {group, paths, dot, label, x, y});
+    const label = svgNode('g', {fill: state.color, 'data-code': field.code}, $('field-labels'));
+    const codeText = svgNode('text', {'font-size': 12}, label);
+    codeText.textContent = field.code;
+    const details = svgNode('g', {class: 'field-depth'}, label);
+    const depthText = svgNode('text', {'font-size': 11}, details);
+    depthText.textContent = field.depth_label || 'Depth uncalibrated';
+    const countText = svgNode('text', {'font-size': 11}, details);
+    countText.textContent = candidateLabel(field);
+    const labelWidth = Math.max(...[codeText, depthText, countText].map(n => n.getComputedTextLength())) + 12;
+    const polygons = field.footprints.map(p => p.ra_dec_deg.map(point => project(...point)));
+    fieldNodes.set(field.code, {group, paths, dot, label, codeText, details, depthText, countText, labelWidth, polygons, x, y});
   }
   setView(view);
 }
 
 function setView(next) {
-  const width = clamp(next.width, 1000 / 128, 1000);
+  const width = clamp(next.width, 1000 / MAX_ZOOM, 1000);
   const height = width / 2;
   view = {x: clamp(next.x, 0, 1000 - width), y: clamp(next.y, 0, 500 - height), width, height};
   sky.setAttribute('viewBox', `${view.x} ${view.y} ${width} ${height}`);
@@ -113,16 +137,29 @@ function setView(next) {
   for (const [code, nodes] of ordered) {
     const active = code === selected;
     nodes.dot.setAttribute('r', (active ? 4 : zoom < 6 ? 2.5 : 2) * unit);
-    const bounds = [nodes.x + 6 * unit, nodes.y - 16 * unit, nodes.x + 40 * unit, nodes.y + 1 * unit];
-    const overlap = occupied.some(b => bounds[0] < b[2] && bounds[2] > b[0] && bounds[1] < b[3] && bounds[3] > b[1]);
+    const detailed = [nodes.x - nodes.labelWidth / 2 * unit, nodes.y - 32 * unit,
+      nodes.x + nodes.labelWidth / 2 * unit, nodes.y + 19 * unit];
+    const corners = [[detailed[0], detailed[1]], [detailed[2], detailed[1]],
+      [detailed[2], detailed[3]], [detailed[0], detailed[3]]];
+    const collides = bounds => occupied.some(b => bounds[0] < b[2] && bounds[2] > b[0] && bounds[1] < b[3] && bounds[3] > b[1]);
+    // Reveal the three-line label only when it fits inside a sector footprint.
+    const showDetails = nodes.polygons.some(p => corners.every(c => insidePolygon(c, p))) && !collides(detailed);
+    const bounds = showDetails ? detailed : [nodes.x + 6 * unit, nodes.y - 16 * unit, nodes.x + 40 * unit, nodes.y + 1 * unit];
+    const overlap = collides(bounds);
     const visible = (active || (zoom >= 4 && !overlap)) && nodes.x > view.x && nodes.x < view.x + width && nodes.y > view.y && nodes.y < view.y + height;
     nodes.label.style.display = visible ? '' : 'none';
+    nodes.details.style.display = showDetails ? '' : 'none';
+    nodes.dot.style.display = visible && showDetails ? 'none' : '';
     if (visible) occupied.push(bounds);
-    for (const [attr, value] of Object.entries({'font-size': 12 * unit, 'stroke-width': 3 * unit, dx: 6 * unit, dy: -5 * unit})) nodes.label.setAttribute(attr, value);
+    for (const [node, offset, size] of [[nodes.codeText, showDetails ? -18 : -5, 12], [nodes.depthText, -2, 11], [nodes.countText, 14, 11]]) {
+      for (const [attr, value] of Object.entries({x: nodes.x + (showDetails ? 0 : 6 * unit),
+        y: nodes.y + offset * unit, 'font-size': size * unit, 'stroke-width': 3 * unit,
+        'text-anchor': showDetails ? 'middle' : 'start'})) node.setAttribute(attr, value);
+    }
   }
   drawCoordinates(unit);
   $('zoom-level').textContent = `${zoom < 10 ? zoom.toFixed(1).replace('.0', '') : Math.round(zoom)}×`;
-  $('zoom-in').disabled = zoom >= 127.9;
+  $('zoom-in').disabled = zoom >= MAX_ZOOM - .1;
   $('zoom-out').disabled = zoom <= 1.001;
   for (const button of document.querySelectorAll('[data-region]')) button.setAttribute('aria-pressed', String(button.dataset.region === 'all' && zoom === 1));
 }
@@ -149,7 +186,7 @@ function drawCoordinates(unit) {
 }
 
 function zoomAt(factor, x = view.x + view.width / 2, y = view.y + view.height / 2) {
-  const width = clamp(view.width / factor, 1000 / 128, 1000);
+  const width = clamp(view.width / factor, 1000 / MAX_ZOOM, 1000);
   const ratio = width / view.width;
   setView({x: x - (x - view.x) * ratio, y: y - (y - view.y) * ratio, width});
 }
@@ -158,7 +195,7 @@ function fitPoints(points, padding = 1.35) {
   const projected = points.map(point => project(...point));
   const xs = projected.map(p => p[0]), ys = projected.map(p => p[1]);
   const left = Math.min(...xs), right = Math.max(...xs), top = Math.min(...ys), bottom = Math.max(...ys);
-  const width = clamp(Math.max(right - left, (bottom - top) * 2) * padding, 1000 / 128, 1000);
+  const width = clamp(Math.max(right - left, (bottom - top) * 2) * padding, 1000 / MAX_ZOOM, 1000);
   setView({x: (left + right - width) / 2, y: (top + bottom - width / 2) / 2, width});
 }
 
@@ -195,6 +232,8 @@ function selectField(code, zoom = true) {
   textNode('p', state.label, panel, 'field-state');
   textNode('p', `RA ${field.ra_deg.toFixed(3)}° · Dec ${field.dec_deg.toFixed(3)}°`, panel, 'field-meta');
   textNode('p', field.result, panel);
+  textNode('p', `${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`, panel, 'field-meta');
+  if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
   if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
   textNode('p', field.state === 'queued' ? 'Planned sector footprints' : 'Sector image footprints', panel, 'small');
   const sectors = textNode('div', '', panel, 'sector-list');
@@ -208,20 +247,20 @@ function selectField(code, zoom = true) {
       emphasizeField();
     });
   }
-  if (field.injections?.length) {
+  if (field.depth_samples?.length) {
     const table = textNode('table', '', panel, 'injections');
-    const caption = textNode('caption', 'Individual injection recoveries', table);
+    const caption = textNode('caption', 'Injection recovery by magnitude', table);
     caption.className = 'screen-reader-text';
     const header = textNode('tr', '', textNode('thead', '', table));
-    textNode('th', 'V mag', header).scope = 'col';
-    textNode('th', 'Blind recovery', header).scope = 'col';
+    textNode('th', 'Magnitude', header).scope = 'col';
+    textNode('th', 'Recovered / tested', header).scope = 'col';
     const body = textNode('tbody', '', table);
-    for (const injection of field.injections) {
+    for (const injection of field.depth_samples) {
       const row = textNode('tr', '', body);
-      textNode('td', injection.V.toFixed(2), row);
-      textNode('td', injection.assessed ? (injection.recovered ? 'Recovered' : 'Not recovered') : 'Not assessed', row);
+      textNode('td', `${injection.band} ${injection.magnitude.toFixed(2)}`, row);
+      textNode('td', `${injection.recovered} / ${injection.tested}`, row);
     }
-    textNode('p', 'Assumed V − T = 0.5. These individual tests do not define a completeness limit.', panel, 'small');
+    textNode('p', 'T is the TESS magnitude; V assumes V − T = 0.5. Results combine the field’s searched sectors.', panel, 'small');
   }
   if (zoom) fitPoints(field.footprints.flatMap(p => p.ra_dec_deg), 1.65);
   else setView(view);
@@ -261,7 +300,7 @@ sky.addEventListener('pointermove', event => {
   sky.classList.add('dragging');
   const rect = sky.getBoundingClientRect();
   const distance = points.length > 1 ? Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y) : 0;
-  const width = clamp(gesture.view.width * (gesture.distance ? gesture.distance / Math.max(distance, 1) : 1), 1000 / 128, 1000);
+  const width = clamp(gesture.view.width * (gesture.distance ? gesture.distance / Math.max(distance, 1) : 1), 1000 / MAX_ZOOM, 1000);
   setView({x: gesture.anchor[0] - (mid.x - rect.left) / rect.width * width,
     y: gesture.anchor[1] - (mid.y - rect.top) / rect.height * width / 2, width});
 });
@@ -324,7 +363,7 @@ async function updateQueue() {
     if (!status.tasks || typeof status.tasks !== 'object') throw new Error('Invalid queue status');
     const count = name => Number.isInteger(Number(status.tasks[name] ?? 0)) && Number(status.tasks[name] ?? 0) >= 0 ? Number(status.tasks[name] ?? 0) : 0;
     const expired = Math.min(count('leased'), Math.max(0, Number(status.expired_leases) || 0));
-    $('queue-status').textContent = `${count('pending') + expired} available · ${count('leased') - expired} active leases · ${count('submitted')} submitted`;
+    $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} submitted`;
     $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. Submissions await review.`;
   } catch {
     $('queue-status').textContent = 'Live queue temporarily unavailable';
@@ -342,6 +381,13 @@ async function initialize() {
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
     $('field-count').textContent = data.fields.length;
+    $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
+    if (data.expectation_forecast) {
+      $('recoverable-expectation').textContent = `≈ ${data.expectation_forecast.value.toPrecision(2)}`;
+      $('forecast-note').textContent = 'The recoverable expectation is the earlier 100 machine-day projection from the initial two-worker benchmark. It assumes new, disjoint fields with comparable brightness and crowding. It is a sparse planning estimate, not a calibrated estimate of the total sky-wide recoverable probability; subsequent fields can change the projected rate.';
+    } else {
+      $('recoverable-expectation').textContent = 'Not estimated';
+    }
     for (const [state, info] of Object.entries(STATES)) {
       const item = textNode('span', '', $('state-legend'));
       const swatch = textNode('i', '', item, info.style || '');
