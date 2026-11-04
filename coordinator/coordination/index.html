@@ -39,7 +39,7 @@
     <p class="expectation-caption small">Fractions of one planet in expectation, assuming P(planet nine exists) = 0.2. Sensitivity estimates, not discoveries.</p>
     <div class="metrics" aria-label="Search snapshot totals">
       <div><strong id="searched-count">—</strong><span>fields searched</span></div>
-      <div><strong id="followup-count">—</strong><span>unvetted screening flags</span></div>
+      <div><strong id="followup-count">—</strong><span>flags awaiting follow-up</span></div>
       <div><strong id="field-count">—</strong><span>fields in this map</span></div>
     </div>
     <section class="atlas" aria-labelledby="map-heading">
@@ -115,6 +115,7 @@
       <p>Purple shading is the density of 21,740 surviving reference orbits at the 2018 reference epoch, smoothed by 2°. It is not a posterior updated by this search. Right ascension increases to the left; the ecliptic uses J2000.</p>
       <p>Outlines are sector image footprints, including overlapping and unsearched pixels. A completed search does not imply uniform depth or an excluded patch of sky. Injection recovery determines sensitivity; unresolved flags are not confirmed planets.</p>
       <p>Zoomed field labels show the faintest recovered injection and the unresolved flag count. A flag is a trial trajectory that exceeded the field’s control scores. Several trajectories can flag the same residual, so this is not a count of distinct objects. Magenta fields need follow-up; muted red fields stopped before search. A dash means flags were not assessed.</p>
+      <p>Flags are screened against the local orbital and physical ranges of the <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown reference population</a>, with allowances for sampling and measurement uncertainty. Rejected trials remain in the historical record. Amber fields have cleared their flags and await recovery calibration; green requires completed search and recovery checks. These classifications are conditional on the adopted planet-nine population.</p>
       <p>Missed injections and uncalibrated depths are marked explicitly. T denotes TESS magnitude and V visual magnitude. Click a field for recovery counts at each tested magnitude.</p>
       <p id="proxy-note"></p>
       <p id="forecast-note"></p>

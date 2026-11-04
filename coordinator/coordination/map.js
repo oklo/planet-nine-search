@@ -3,6 +3,7 @@
 const STATES = {
   complete: {label: 'Search + recovery complete', color: '#087e55'},
   needs_followup: {label: 'Follow-up open', color: '#b42d85'},
+  calibration_pending: {label: 'Flags cleared · calibration pending', color: '#b5771b'},
   validation_failed: {label: 'Validation failed', color: '#a86800'},
   preflight_failed: {label: 'Stopped before search', color: '#b44352'},
   deferred: {label: 'Deferred / incomplete', color: '#697587', style: 'open'},
@@ -232,6 +233,9 @@ function selectField(code, zoom = true) {
   textNode('p', state.label, panel, 'field-state');
   textNode('p', `RA ${field.ra_deg.toFixed(3)}° · Dec ${field.dec_deg.toFixed(3)}°`, panel, 'field-meta');
   textNode('p', field.result, panel);
+  if (Number.isInteger(field.historical_flag_count)) {
+    textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
+  }
   textNode('p', `${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`, panel, 'field-meta');
   if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
   if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
