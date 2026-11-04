@@ -157,7 +157,11 @@ class AuditedHoughSearch:
                     [self.grid["joint_angular_step_rad_per_day"]] * 2 + [inverse[1] - inverse[0]]
                 ),
             )
-            if self.certificate["certified"] and device().type == "mps":
+            if (
+                self.certificate["certified"]
+                and device().type == "mps"
+                and hasattr(torch.mps, "compile_shader")
+            ):
                 self.compact = torch.from_numpy(compact).to("mps")
             self.report("selector_metric_certificate.json", self.certificate)
         elif digest != self.fingerprint:

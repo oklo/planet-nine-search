@@ -146,3 +146,21 @@ class AuditGateTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_older_torch_without_metal_compiler_uses_reference_selector(monkeypatch):
+    monkeypatch.delattr(torch.mps, "compile_shader", raising=False)
+    monkeypatch.setattr(module, "device", lambda: torch.device("mps"))
+    monkeypatch.setattr(module, "motion_embeddings", lambda motions, sectors: np.asarray(motions))
+    monkeypatch.setattr(
+        module, "certified_coordinates", lambda motions, full, *args: (full, {"certified": True})
+    )
+    monkeypatch.setattr(multimodal, "search", lambda *args, **kwargs: ({"reference": True}, {}))
+    specs = [dict(angular=np.zeros((1, 2)), inverse_distance=g) for g in [0.001, 0.002]]
+    backend = module.AuditedHoughSearch(
+        {"joint_angular_step_rad_per_day": 0.001}, lambda *args: None
+    )
+    result, details = backend([], [], specs, sector_sums=None)
+    assert result == {"reference": True}
+    assert details["selector_fallback"]
+    assert not details["fast_selector"]
