@@ -74,8 +74,8 @@ function curve(points, attributes, parent) {
 
 function candidateLabel(field) {
   return Number.isInteger(field.candidate_count)
-    ? `${field.candidate_count} candidate${field.candidate_count === 1 ? '' : 's'}`
-    : 'Candidates: —';
+    ? `${field.candidate_count} flag${field.candidate_count === 1 ? '' : 's'}`
+    : 'Flags: —';
 }
 
 function insidePolygon([x, y], polygon) {
