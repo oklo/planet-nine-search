@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="description" content="Planet Nine search coordination and TESS field coverage.">
+  <title>Planet Nine · search coordination — oklo</title>
+  <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
+  <link rel="stylesheet" href="map.css">
+  <script src="map.js" defer></script>
+</head>
+<body>
+  <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
+  <header class="site-header">
+    <div class="band">
+      <p class="site-title"><a href="/">oklo</a></p>
+      <p class="site-description">delineating connections</p>
+    </div>
+  </header>
+  <nav class="site-nav" aria-label="Primary">
+    <div class="band"><div class="site-nav__scroller">
+      <ul><li><a href="/">Blog</a></li><li><a href="https://github.com/oklo/planet-nine-search">Search code ↗</a></li></ul>
+    </div></div>
+  </nav>
+  <main id="primary-content" class="site-main" tabindex="-1">
+    <header class="page-heading">
+      <p class="eyebrow">TESS / search coordination</p>
+      <h1>Planet Nine</h1>
+      <p class="intro">A shared search, one field at a time.</p>
+      <p id="snapshot-time" class="small">Loading the latest published search map…</p>
+    </header>
+    <div id="load-error" role="alert" hidden>The search map could not load. Please reload the page.</div>
+    <noscript><p>The interactive map needs JavaScript. The <a href="snapshot.json">search snapshot</a> remains available to download.</p></noscript>
+    <div class="metrics" aria-label="Search snapshot totals">
+      <div><strong id="searched-count">—</strong><span>fields searched</span></div>
+      <div><strong id="followup-count">—</strong><span>flags under review</span></div>
+      <div><strong id="field-count">—</strong><span>fields in this map</span></div>
+    </div>
+    <section class="atlas" aria-labelledby="map-heading">
+      <div class="map-heading">
+        <h2 id="map-heading">Search atlas</h2>
+        <span class="small">Equatorial · Mollweide</span>
+      </div>
+      <div class="map-toolbar" aria-label="Map views">
+        <div class="regions">
+          <button type="button" data-region="all" aria-pressed="true">All sky</button>
+          <button type="button" data-region="north" aria-pressed="false">Northern fields</button>
+          <button type="button" data-region="crowded" aria-pressed="false">Crowded region</button>
+          <button type="button" data-region="south" aria-pressed="false">Southern fields</button>
+        </div>
+        <div class="zoom-controls">
+          <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
+          <output id="zoom-level" aria-label="Map zoom">1×</output>
+          <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+        </div>
+      </div>
+      <div class="map-frame">
+        <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map" aria-describedby="map-help">
+          <title>Planet Nine search fields</title>
+          <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons or field selector to explore.</desc>
+          <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
+          <g clip-path="url(#sky-clip)">
+            <ellipse cx="500" cy="250" rx="500" ry="250" fill="#fcfbfd"/>
+            <image href="prior.png" x="0" y="0" width="1000" height="500"/>
+            <g id="graticule"></g>
+            <g id="reference-curves"></g>
+            <g id="fields"></g>
+            <g id="field-labels" aria-hidden="true"></g>
+            <g id="coordinates" aria-hidden="true"></g>
+          </g>
+          <ellipse cx="500" cy="250" rx="500" ry="250" fill="none" stroke="#ccc7d1" vector-effect="non-scaling-stroke"/>
+        </svg>
+        <span id="cursor-coordinates" aria-hidden="true"></span>
+      </div>
+      <div class="map-caption">
+        <p id="map-help">Click to zoom. Drag to pan. Select a field for its sectors. Keyboard: + / −, arrows, 0 to reset.</p>
+        <button id="clear-selection" type="button" hidden>Clear selection</button>
+      </div>
+      <div id="state-legend" class="state-legend" aria-label="Field states"></div>
+      <div class="reference-legend">
+        <span><i class="line galactic"></i>Galactic plane</span>
+        <span><i class="line ecliptic"></i>Ecliptic</span>
+        <span class="density-key"><span>Purple: reference density</span><i class="density-ramp"></i><span>0–0.08% / deg²</span></span>
+      </div>
+    </section>
+    <div class="lower-grid">
+      <section aria-labelledby="field-heading">
+        <div class="section-heading">
+          <h2 id="field-heading">Field details</h2>
+          <label class="screen-reader-text" for="field-select">Choose a field</label>
+          <select id="field-select"><option value="">Choose a field…</option></select>
+        </div>
+        <div id="field-details" aria-live="polite">
+          <p class="muted">Zoom into a group of fields, then click an outline to inspect its coverage.</p>
+          <p class="small">Overlapping outlines are individual TESS sectors. Dashed blue outlines show planned images.</p>
+        </div>
+      </section>
+      <section aria-labelledby="queue-heading">
+        <h2 id="queue-heading">Coordinate a search</h2>
+        <p id="queue-status" class="queue-status" role="status">Checking the shared queue…</p>
+        <p class="small" id="queue-time"></p>
+        <p>Workers claim a field from oklo.org, search locally, and return a result for review.</p>
+        <a class="start-link" href="https://github.com/oklo/planet-nine-search#readme">Get the search package <span aria-hidden="true">↗</span></a>
+        <p class="small">Queue counts refresh every minute. Map coverage updates when a new reviewed snapshot is published.</p>
+      </section>
+    </div>
+    <details class="map-notes">
+      <summary>Reading the map</summary>
+      <p>Purple shading is the density of 21,740 surviving reference orbits at the 2018 reference epoch, smoothed by 2°. It is not a posterior updated by this search. Right ascension increases to the left; the ecliptic uses J2000.</p>
+      <p>Outlines are sector image footprints, including overlapping and unsearched pixels. A completed search does not imply uniform depth or an excluded patch of sky. Injection recovery determines sensitivity; unresolved flags are not confirmed planets.</p>
+      <p id="proxy-note"></p>
+      <p><a href="snapshot.json" download>Download the map snapshot (JSON)</a></p>
+    </details>
+  </main>
+  <footer class="site-footer"><div class="band"><span>oklo · Planet Nine search</span><span>Unlinked preview</span></div></footer>
+</body>
+</html>

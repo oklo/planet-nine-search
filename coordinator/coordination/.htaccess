@@ -1,0 +1,8 @@
+Options -Indexes
+DirectoryIndex index.html
+<IfModule mod_headers.c>
+    Header set X-Robots-Tag "noindex, nofollow"
+    <FilesMatch "\.(html|json|js|css)$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>

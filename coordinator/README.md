@@ -51,3 +51,12 @@ results; registration is open, so submitted science is not trusted evidence.
 
 Integration tests use a temporary SQLite database and four PHP worker processes.
 Run `pytest tests/test_coordinator.py`; they skip when PHP is unavailable.
+
+## Coverage page
+
+`coordination/` is an optional, buildless sky map for oklo.org; it uses the site's
+existing WordPress theme. It is unlinked and requests `noindex`. Publish all six
+files, including `.htaccess`, together. `snapshot.json` contains reviewed field
+states and sector WCS polygons; `prior.png` is the matching reference density.
+Refresh these from the reviewed search ledger, never from unverified submissions.
+The page labels its snapshot time and polls the aggregate queue once per minute.
