@@ -5,6 +5,7 @@ from pathlib import Path
 
 import requests
 
+from . import USER_AGENT
 from .storage import read_json, write_json
 from .tasks import validate_url
 
@@ -27,6 +28,7 @@ class Client:
         if self.credentials and self.credentials.get("endpoint") != endpoint:
             raise ValueError("Credentials belong to a different coordinator")
         self.session = requests.Session()
+        self.session.headers["User-Agent"] = USER_AGENT
 
     def save(self):
         write_json(self.credentials_path, self.credentials, private=True)

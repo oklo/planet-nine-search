@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from . import USER_AGENT
 from .storage import canonical, sha256
 
 PROTOCOL = "tess-gaia-hough-v1"
@@ -99,7 +100,9 @@ def fetch_bundle(spec, directory, budget):
     if not archive.exists() or sha256(archive) != spec["bundle_sha256"]:
         budget.check(spec["bundle_bytes"] + MAX_EXPANDED)
         temporary = archive.with_suffix(".part")
-        with requests.get(spec["bundle_url"], stream=True, timeout=(15, 120)) as response:
+        with requests.get(
+            spec["bundle_url"], stream=True, timeout=(15, 120), headers={"User-Agent": USER_AGENT}
+        ) as response:
             response.raise_for_status()
             validate_url(response.url)
             count = 0
