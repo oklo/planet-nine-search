@@ -178,3 +178,15 @@ def test_repeated_failed_work_is_quarantined(coordinator):
         assert call(coordinator, "release", body, pair[0]).status_code == 200
     assert claim(coordinator, pair).json()["task"] is None
     assert coordinator[1]("SELECT state FROM tasks")[0][0] == "failed"
+
+
+def test_voluntary_releases_do_not_exhaust_failure_budget(coordinator):
+    task = seed(coordinator)
+    pair = worker(coordinator)
+    body = {"task_id": task["task_id"], "lease_token": pair[1]}
+    for _ in range(3):
+        assert claim(coordinator, pair).json()["task"] == task
+        assert call(coordinator, "release", body, pair[0]).status_code == 200
+    assert claim(coordinator, pair).json()["task"] == task
+    assert call(coordinator, "release", {**body, "failed": True}, pair[0]).status_code == 200
+    assert coordinator[1]("SELECT state,failures FROM tasks")[0] == ("pending", 1)

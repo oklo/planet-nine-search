@@ -13,7 +13,7 @@ if ($action === 'init') {
     $db->exec("PRAGMA journal_mode=WAL;
         CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE workers(id TEXT PRIMARY KEY,name TEXT NOT NULL,token_hash TEXT UNIQUE NOT NULL,address_hash TEXT NOT NULL,created INTEGER NOT NULL);
-        CREATE TABLE tasks(id TEXT PRIMARY KEY,spec TEXT NOT NULL,priority REAL NOT NULL,required_bytes INTEGER NOT NULL,state TEXT NOT NULL DEFAULT 'pending',worker_id TEXT REFERENCES workers(id),lease_hash TEXT,expires INTEGER,attempts INTEGER NOT NULL DEFAULT 0,last_error TEXT);
+        CREATE TABLE tasks(id TEXT PRIMARY KEY,spec TEXT NOT NULL,priority REAL NOT NULL,required_bytes INTEGER NOT NULL,state TEXT NOT NULL DEFAULT 'pending',worker_id TEXT REFERENCES workers(id),lease_hash TEXT,expires INTEGER,attempts INTEGER NOT NULL DEFAULT 0,failures INTEGER NOT NULL DEFAULT 0,last_error TEXT);
         CREATE UNIQUE INDEX one_active_claim ON tasks(worker_id) WHERE state='leased';
         CREATE INDEX pending_tasks ON tasks(state,priority);
         CREATE TABLE results(task_id TEXT PRIMARY KEY REFERENCES tasks(id),worker_id TEXT REFERENCES workers(id),submitted INTEGER NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL,verified INTEGER NOT NULL DEFAULT 0);");

@@ -64,9 +64,10 @@ function dispatch(PDO $db, string $action, array $body): array {
             return ['lease_seconds' => LEASE_SECONDS];
         }
         if ($action === 'release') {
-            $state = !empty($body['failed']) && (int)$job['attempts'] >= 3 ? 'failed' : 'pending';
+            $failures = (int)$job['failures'] + (!empty($body['failed']) ? 1 : 0);
+            $state = $failures >= 3 ? 'failed' : 'pending';
             $reason = substr((string)($body['reason'] ?? 'worker released'), 0, 500);
-            query($db, 'UPDATE tasks SET state=?,worker_id=NULL,lease_hash=NULL,expires=NULL,last_error=? WHERE id=?', [$state, $reason, $job['id']]);
+            query($db, 'UPDATE tasks SET state=?,worker_id=NULL,lease_hash=NULL,expires=NULL,last_error=?,failures=? WHERE id=?', [$state, $reason, $failures, $job['id']]);
             return ['released' => true];
         }
         if ($action !== 'submit') abort_request(404, 'Unknown action');
