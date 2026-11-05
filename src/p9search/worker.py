@@ -11,7 +11,7 @@ from pathlib import Path
 import requests
 
 from .client import Client, CoordinatorError
-from .storage import canonical, read_json, write_json
+from .storage import DirectoryLock, canonical, read_json, write_json
 from .tasks import PROTOCOL, validate_task
 
 
@@ -43,8 +43,14 @@ def submit(client, job_directory):
 
 
 def work(args, budget):
+    credentials = (args.credentials or args.directory / "credentials.json").resolve()
+    with DirectoryLock(credentials.parent, credentials.name + ".lock"):
+        _work(args, budget, credentials)
+
+
+def _work(args, budget, credentials):
     root = Path(args.directory).resolve()
-    client = Client(args.coordinator, root / "credentials.json")
+    client = Client(args.coordinator, credentials)
     client.register(args.name)
     # If the previous response was lost, repeat the identical submission first.
     if "task_id" in client.credentials:

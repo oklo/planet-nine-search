@@ -22,6 +22,11 @@ def parser():
     worker = commands.add_parser("worker", help="claim and search a field")
     worker.add_argument("--coordinator", default=DEFAULT_COORDINATOR)
     worker.add_argument(
+        "--credentials",
+        type=Path,
+        help="private credential file (default: credentials.json in the work directory)",
+    )
+    worker.add_argument(
         "--name", default="volunteer", help="public worker label; no personal information needed"
     )
     worker.add_argument(

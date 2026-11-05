@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from p9search import worker
-from p9search.storage import DiskBudget, read_json, write_json
+from p9search.storage import DirectoryLock, DiskBudget, read_json, write_json
 
 from .test_tasks import specification
 
@@ -97,6 +97,7 @@ def test_lost_lease_stops_child_and_never_submits(tmp_path, monkeypatch):
     monkeypatch.setattr(worker, "stop_child", lambda p: setattr(p, "returncode", -15))
     args = SimpleNamespace(
         directory=tmp_path,
+        credentials=None,
         coordinator="https://example.org/api",
         name="test",
         continuous=False,
@@ -112,3 +113,52 @@ def test_lost_lease_stops_child_and_never_submits(tmp_path, monkeypatch):
         worker.work(args, DiskBudget(tmp_path, 2**30, 0))
     assert child.returncode == -15
     assert actions == ["claim", "release"]
+
+
+def test_external_work_keeps_credentials_on_private_disk(tmp_path, monkeypatch):
+    from p9search.cli import parser
+
+    work = tmp_path / "shared"
+    credentials = tmp_path / "private" / "worker.json"
+    args = parser().parse_args(
+        [
+            "worker",
+            "--directory",
+            str(work),
+            "--credentials",
+            str(credentials),
+        ]
+    )
+
+    def request(self, action, body):
+        if action == "register":
+            return {"worker_id": "approved-worker"}
+        assert action == "claim"
+        return {"task": None}
+
+    monkeypatch.setattr(worker.Client, "request", request)
+    worker.work(args, DiskBudget(work, 2**30, 0))
+    saved = read_json(credentials)
+    assert saved["worker_id"] == "approved-worker"
+    assert saved["token"] and saved["lease_token"]
+    assert credentials.stat().st_mode & 0o777 == 0o600
+    assert not list(work.iterdir())
+
+
+def test_one_worker_identity_cannot_run_in_two_work_directories(tmp_path):
+    from p9search.cli import parser
+
+    credentials = tmp_path / "private" / "worker.json"
+    args = parser().parse_args(
+        [
+            "worker",
+            "--directory",
+            str(tmp_path / "second-work"),
+            "--credentials",
+            str(credentials),
+        ]
+    )
+    with DirectoryLock(credentials.parent, credentials.name + ".lock"):
+        with pytest.raises(RuntimeError, match="Another process"):
+            worker.work(args, DiskBudget(args.directory, 2**30, 0))
+    assert not credentials.exists()

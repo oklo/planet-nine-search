@@ -19,6 +19,8 @@ Each worker claims one field and retains its evidence locally. Results await a
 full replay on the trusted master before acceptance. Use `p9 status` for queue
 counts and `p9 --help` for local runs and review. Defaults limit each search to
 24 GiB resident memory and four hours; disk and memory limits are adjustable.
+For images on a shared drive, keep the token on a private disk with
+`--credentials ~/.config/planet-nine/worker.json`.
 
 Scores are conditional statistics, not discovery significance. Injection
 recovery measures sensitivity under the declared models; it does not establish
