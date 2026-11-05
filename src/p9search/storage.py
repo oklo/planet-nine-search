@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import os
 import shutil
 from pathlib import Path
@@ -95,3 +96,47 @@ class DirectoryLock:
 
     def __exit__(self, *_):
         self.stream.close()
+
+
+MAX_REPORT = 2_000_000
+
+
+def bounded_json(raw):
+    if len(raw) > MAX_REPORT:
+        raise ValueError("Report exceeds limit")
+
+    def pairs(items):
+        result = {}
+        for key, value in items:
+            if key in result:
+                raise ValueError("Duplicate JSON member")
+            result[key] = value
+        return result
+
+    def invalid(value):
+        raise ValueError("Nonfinite JSON number")
+
+    try:
+        value = json.loads(raw, object_pairs_hook=pairs, parse_constant=invalid)
+    except RecursionError as error:
+        raise ValueError("Report nesting exceeds limit") from error
+
+    def check(item, depth=0):
+        if depth > 24:
+            raise ValueError("Report nesting exceeds limit")
+        if isinstance(item, dict):
+            for member in item.values():
+                check(member, depth + 1)
+        elif isinstance(item, list):
+            for member in item:
+                check(member, depth + 1)
+        elif isinstance(item, float) and not math.isfinite(item):
+            invalid(item)
+
+    check(value)
+    return value
+
+
+def load_bounded(path):
+    with Path(path).open("rb") as stream:
+        return bounded_json(stream.read(MAX_REPORT + 1))

@@ -173,11 +173,15 @@ def grids(sectors, minimum=200.0, maximum=1500.0, joint_step=0.45, local_step=0.
     parallax -= parallax.mean(axis=0)
     inverse_step = joint_step / (np.sqrt(np.mean(np.sum(parallax**2, axis=1))) * scale)
     count = int(np.ceil((1 / minimum - 1 / maximum) / inverse_step)) + 1
+    if not 2 <= count <= 128:
+        raise ValueError("Distance lattice exceeds supported size")
     inverse = np.linspace(1 / maximum, 1 / minimum, count)
     specs = []
     for g in inverse:
         bound = np.sqrt(2) * 0.01720209895 * g**1.5
         n = int(np.ceil(bound / angular_step))
+        if n > 1000 or sum(len(s["angular"]) for s in specs) + (2 * n + 1) ** 2 > 4_000_000:
+            raise ValueError("Motion lattice exceeds supported size")
         iy, ix = np.mgrid[-n : n + 1, -n : n + 1]
         q = np.c_[ix.ravel(), iy.ravel()] * angular_step
         q = q[np.linalg.norm(q, axis=1) <= bound + angular_step / np.sqrt(2)]

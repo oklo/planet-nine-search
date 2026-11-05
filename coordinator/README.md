@@ -1,67 +1,87 @@
 # Coordinator
 
-A PHP 8.1+ service with PDO SQLite. It needs no daemon, WordPress plugin, or
-external database. SQLite must be on a local filesystem with reliable locking.
-
-Copy this directory to a dedicated HTTPS path. Keep the database **outside the
-web root**. The default is `~/.planet-nine/queue.sqlite` when installed at
-`~/public_html/planet-nine`; other layouts must set `P9_DATABASE` in both the web
-server and the administrative shell. Initialize once:
+PHP 8.1+ with PDO SQLite. Keep the database and review key outside the web root.
+Set `P9_DATABASE` for both PHP and the administrative shell. Install on a local
+filesystem with reliable SQLite locking. The hosting account is trusted; use
+a separate account or container from WordPress before opening participation.
+Include `.htaccess`, or equivalent access rules, to protect administrative files.
 
 ```sh
-P9_DATABASE=/private/path/queue.sqlite php admin.php init
-P9_DATABASE=/private/path/queue.sqlite php admin.php add field.json 10
-P9_DATABASE=/private/path/queue.sqlite php admin.php results
+php admin.php init
+php admin.php add field.json 10
+php admin.php workers
+php admin.php approve WORKER_ID
 ```
 
-`add` takes an optional priority; higher values are claimed first. Tasks are
-immutable, content-addressed JSON. The Python worker validates their schema and
-hash. Use `tools/make_task.py --help` to bundle an independently prepared geometry
-plan and query Gaia. Geometry plans must be reviewed before queueing: the tool
-packages them, rather than deriving footprints or selecting on image pixels.
-Host the resulting ZIP at the declared HTTPS URL. Keep the JSON canonical;
-`make_task.py` writes the required representation. An example is in `examples/`.
+Generate canonical task JSON and bounded geometry bundles with
+`tools/make_task.py`. `--empirical-star-sectors` enables T < 12 empirical templates
+in named sectors. `tools/make_prior.py` builds a physical envelope from the pinned
+Brown reference CSV; pass its output as `--prior`. Review geometry, motion masks,
+and injection choices before enqueueing. Workers allow bundle downloads only
+from `https://oklo.org` unless given another trusted `--bundle-origin`.
 
-Keep a reserve for visitors by running `php admin.php reserve WORKER_ID 4` for
-the operator's worker. It can claim new work only while more than four fields
-are ready; other workers remain unrestricted. Claims check this atomically,
-and existing leases continue normally. Set the count to zero to remove the limit.
+Registration creates a pending worker. Approval allows one active lease, one
+unreviewed result, and at most eight new claims per day. Leases renew for at most
+six hours. Unreviewed results expire after 24 hours; the task returns to the
+queue and the worker needs reapproval. Three failed or expired leases also
+require reapproval. Worker reports never permanently retire tasks.
 
-For Apache, include `.htaccess` to disable directory listings, preserve bearer
-authorization, and deny HTTP access to administrative files. For other servers,
-set equivalent rules. `admin.php` additionally rejects non-CLI execution. Back
-up SQLite with its online backup API, rather than copying a live WAL database.
+```sh
+php admin.php requeue TASK_ID "reason"
+php admin.php revoke WORKER_ID
+php admin.php rotate WORKER_ID /private/replacement-token.txt
+php admin.php reserve WORKER_ID 4
+php admin.php expire
+```
 
-## Protocol
+Rotation invalidates leases and keeps the worker's history and claim limits.
+Reapprove after delivering the replacement token privately. `reserve` leaves
+that many pending tasks for other workers. All state changes have an audit trail.
 
-All API calls use `api.php?action=...`. Only `status` uses GET; other actions
-accept JSON POST. Registration accepts a worker label and a client-generated
-32-byte hexadecimal token. All later calls require `Authorization: Bearer TOKEN`.
-Only token hashes are stored. Credentials on workers have mode 0600.
+## Trusted review
 
-| Action | Behavior |
-|---|---|
-| `register` | Idempotently register a token; ten new workers per IP per day. |
-| `claim` | Atomically claim the highest-priority fitting task; one active claim per worker. |
-| `heartbeat` | Renew the matching worker and lease token for 30 minutes. |
-| `release` | Return unfinished work; quarantine after three reported failures. |
-| `submit` | Save an unverified result; accept identical retries, reject conflicting results. |
-| `status` | Report aggregate queue counts without exposing credentials. |
+`results` exports one bounded submission per line. Save the relevant line as
+`submission.json`. On the trusted master, review it against the **operator's**
+task file, with a fresh directory. Remote files never enter the replay cache.
 
-Expired claims become available on the next claim request. Stale workers cannot
-renew, release, or submit after reassignment. Workers stop their search if lease
-renewal fails beyond its deadline. Network failure during submission leaves the
-exact result locally for retry. Independent review is required before crediting
-results; registration is open, so submitted science is not trusted evidence.
+```sh
+php admin.php results
+p9 review field.json submission.json --directory review-001 --key /private/review.key
+P9_REVIEW_KEY=/private/review.key php admin.php accept review-001/receipt.json
+```
 
-Integration tests use a temporary SQLite database and four PHP worker processes.
-Run `pytest tests/test_coordinator.py`; they skip when PHP is unavailable.
+Generate the shared private key once as 32 random bytes encoded in hexadecimal;
+set its file mode to 0600. The master signs only after a fresh archive acquisition
+and complete search replay, including applicable injections. Candidate omissions,
+altered measurements, or differing outcomes cannot earn acceptance. A failed
+replay creates no receipt. A disagreement requeues the task and suspends approval.
+The receipt binds inputs, code, environment, task, submission, and checks actually
+performed. It adds no sensitivity credit; population accounting remains a separate
+master operation. Include replay cost when estimating volunteer throughput.
 
-## Coverage page
+## Deployment and recovery
 
-`coordination/` is an optional, buildless sky map for oklo.org; it uses the site's
-existing WordPress theme. It is unlinked and requests `noindex`. Publish all six
-files, including `.htaccess`, together. `snapshot.json` contains reviewed field
-states and sector WCS polygons; `prior.png` is the matching reference density.
-Refresh these from the reviewed search ledger, never from unverified submissions.
-The page labels its snapshot time and polls the aggregate queue once per minute.
+For v1, stop claims, make a private backup, deploy v2, then run `migrate`.
+Migration is transactional and retains old tasks/results as `legacy`; publish
+new v2 tasks and explicitly reapprove workers. Historical results are unchanged.
+Deploy all PHP files together. Do not run mixed application versions.
+
+```sh
+php admin.php backup /private/queue-backup.sqlite
+php admin.php migrate
+P9_DATABASE=/private/restored.sqlite php admin.php restore /private/queue-backup.sqlite
+```
+
+`backup` takes a WAL-consistent SQLite snapshot. `restore` checks integrity and
+requires an unused destination. Test restoration privately before switching the
+service path. To roll back, restore the pre-migration backup and previous code
+together while claims are stopped. Keep regular backups and run `expire` from
+cron if the service is idle.
+
+The optional `coordination/` map uses a reviewed static snapshot; unverified
+submissions affect queue counts only. Noindex and an unlinked URL are not access
+controls. No credentials or accepted results are served through the public API.
+
+Tests use disposable databases and concurrent workers. On macOS without PHP,
+use the cached `php:8.2-cli` image:
+`P9_TEST_DOCKER=1 pytest tests/test_coordinator.py --basetemp .pytest_cache/php`.

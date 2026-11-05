@@ -1,0 +1,236 @@
+[
+  {
+    "field": "N104",
+    "parameters": [
+      36.0,
+      99.0,
+      0.0,
+      4.5943529510356776e-08,
+      0.0006666666666666666
+    ],
+    "native": {
+      "anchors": 4,
+      "coherent_score": 82.06124921249297,
+      "flux": 5.693782333179805,
+      "formal_snr": 101.03719011826767,
+      "information_fraction": 0.3496137360264926,
+      "minimum_sector_score": 0.1070901805966864,
+      "partial_sectors": 0,
+      "positive_sectors": 4,
+      "sector_consistency_chi2": 360.0863332594537,
+      "sectors": 4,
+      "sigma": 0.05635333213953226
+    },
+    "expected_eligible": false,
+    "context": {
+      "lower": [
+        -1.569385385172957e-07,
+        -1.165647968129593e-06,
+        0.0005226792182348396
+      ],
+      "upper": [
+        7.713684107581102e-06,
+        1.964189456236373e-06,
+        0.0061783926616541035
+      ],
+      "optical_radius_max_earth": 5.318028593849416,
+      "inverse_step": 0.0003333333333333333
+    },
+    "source_sha256": "b0378c1f50a7523d0951b417b8cc3e21fe458e7f8fe729646a88aec2d70baee4"
+  },
+  {
+    "field": "N104",
+    "parameters": [
+      34.0,
+      98.0,
+      9.188705902071355e-08,
+      1.3783058853107033e-07,
+      0.0006666666666666666
+    ],
+    "native": {
+      "anchors": 4,
+      "coherent_score": 78.7696474500854,
+      "flux": 5.898524294526054,
+      "formal_snr": 103.7195267497029,
+      "information_fraction": 0.33800806491679103,
+      "minimum_sector_score": 0.4767360592445677,
+      "partial_sectors": 0,
+      "positive_sectors": 4,
+      "sector_consistency_chi2": 622.4964770654814,
+      "sectors": 4,
+      "sigma": 0.05686994994453106
+    },
+    "expected_eligible": false,
+    "context": {
+      "lower": [
+        -1.569385385172957e-07,
+        -1.165647968129593e-06,
+        0.0005226792182348396
+      ],
+      "upper": [
+        7.713684107581102e-06,
+        1.964189456236373e-06,
+        0.0061783926616541035
+      ],
+      "optical_radius_max_earth": 5.318028593849416,
+      "inverse_step": 0.0003333333333333333
+    },
+    "source_sha256": "b0378c1f50a7523d0951b417b8cc3e21fe458e7f8fe729646a88aec2d70baee4"
+  },
+  {
+    "field": "N16",
+    "parameters": [
+      100.0,
+      112.0,
+      9.010030484702323e-08,
+      7.208024387761858e-07,
+      0.0019047619047619048
+    ],
+    "native": {
+      "flux": 2.7881633757131143,
+      "sigma": 0.07390987097160262,
+      "formal_snr": 37.723829565124966,
+      "sector_consistency_chi2": 101.23919221113727,
+      "coherent_score": 27.662060724054463,
+      "sectors": 4,
+      "anchors": 4,
+      "partial_sectors": 0,
+      "positive_sectors": 3,
+      "minimum_sector_score": -0.3901570687071802,
+      "information_fraction": 0.43574067199887756
+    },
+    "expected_eligible": true,
+    "context": {
+      "lower": [
+        -3.9277869072055956e-07,
+        -1.271436493206373e-06,
+        0.000444481415408426
+      ],
+      "upper": [
+        8.371306791884369e-06,
+        1.8294455449432917e-06,
+        0.00643002044657244
+      ],
+      "optical_radius_max_earth": 3.89536401139226,
+      "inverse_step": 0.0003095238095238095
+    },
+    "source_sha256": "3ebb7328690b1c6495dc4addfe995517253562331869e29aac296005022adfd4"
+  },
+  {
+    "field": "N16",
+    "parameters": [
+      91.0,
+      95.0,
+      2.703009145410697e-07,
+      1.756955944516953e-06,
+      0.0019047619047619048
+    ],
+    "native": {
+      "flux": 2.9597935045769703,
+      "sigma": 0.07384205112140445,
+      "formal_snr": 40.08276394856292,
+      "sector_consistency_chi2": 119.7483397304038,
+      "coherent_score": 29.13980549436034,
+      "sectors": 4,
+      "anchors": 4,
+      "partial_sectors": 0,
+      "positive_sectors": 4,
+      "minimum_sector_score": 1.0437007375422833,
+      "information_fraction": 0.48054325137797144
+    },
+    "expected_eligible": true,
+    "context": {
+      "lower": [
+        -3.9277869072055956e-07,
+        -1.271436493206373e-06,
+        0.000444481415408426
+      ],
+      "upper": [
+        8.371306791884369e-06,
+        1.8294455449432917e-06,
+        0.00643002044657244
+      ],
+      "optical_radius_max_earth": 3.89536401139226,
+      "inverse_step": 0.0003095238095238095
+    },
+    "source_sha256": "3ebb7328690b1c6495dc4addfe995517253562331869e29aac296005022adfd4"
+  },
+  {
+    "field": "N16",
+    "parameters": [
+      101.0,
+      112.0,
+      9.010030484702323e-08,
+      7.208024387761858e-07,
+      0.0025238095238095237
+    ],
+    "native": {
+      "flux": 2.6602045985559837,
+      "sigma": 0.069923906991174,
+      "formal_snr": 38.04427860262103,
+      "sector_consistency_chi2": 111.42732660272323,
+      "coherent_score": 27.48836430765239,
+      "sectors": 4,
+      "anchors": 4,
+      "partial_sectors": 0,
+      "positive_sectors": 3,
+      "minimum_sector_score": -1.285032408530501,
+      "information_fraction": 0.4685742016052237
+    },
+    "expected_eligible": true,
+    "context": {
+      "lower": [
+        -3.9277869072055956e-07,
+        -1.271436493206373e-06,
+        0.000444481415408426
+      ],
+      "upper": [
+        8.371306791884369e-06,
+        1.8294455449432917e-06,
+        0.00643002044657244
+      ],
+      "optical_radius_max_earth": 3.89536401139226,
+      "inverse_step": 0.0003095238095238095
+    },
+    "source_sha256": "3ebb7328690b1c6495dc4addfe995517253562331869e29aac296005022adfd4"
+  },
+  {
+    "field": "N16",
+    "parameters": [
+      101.0,
+      114.0,
+      4.5050152423511615e-08,
+      5.85651981505651e-07,
+      0.0019047619047619048
+    ],
+    "native": {
+      "flux": 2.7357305417995024,
+      "sigma": 0.07480186746107466,
+      "formal_snr": 36.573024640369034,
+      "sector_consistency_chi2": 99.06308616119796,
+      "coherent_score": 26.619980575300403,
+      "sectors": 4,
+      "anchors": 4,
+      "partial_sectors": 0,
+      "positive_sectors": 3,
+      "minimum_sector_score": -0.18494017965263596,
+      "information_fraction": 0.39438210980216826
+    },
+    "expected_eligible": true,
+    "context": {
+      "lower": [
+        -3.9277869072055956e-07,
+        -1.271436493206373e-06,
+        0.000444481415408426
+      ],
+      "upper": [
+        8.371306791884369e-06,
+        1.8294455449432917e-06,
+        0.00643002044657244
+      ],
+      "optical_radius_max_earth": 3.89536401139226,
+      "inverse_step": 0.0003095238095238095
+    },
+    "source_sha256": "3ebb7328690b1c6495dc4addfe995517253562331869e29aac296005022adfd4"
+  }
+]

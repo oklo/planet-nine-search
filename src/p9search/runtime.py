@@ -5,7 +5,7 @@ import torch
 _device = torch.device("cpu")
 
 
-def configure(name="auto", threads=4):
+def configure(name="auto", threads=4, max_memory_bytes=None):
     global _device
     if threads < 1:
         raise ValueError("threads must be positive")
@@ -21,6 +21,15 @@ def configure(name="auto", threads=4):
         raise ValueError("MPS is unavailable")
     if name == "cuda" and not torch.cuda.is_available():
         raise ValueError("CUDA is unavailable")
+    if max_memory_bytes is not None:
+        if name == "mps":
+            torch.mps.set_per_process_memory_fraction(
+                min(1.0, max_memory_bytes / torch.mps.recommended_max_memory())
+            )
+        elif name == "cuda":
+            torch.cuda.set_per_process_memory_fraction(
+                min(1.0, max_memory_bytes / torch.cuda.get_device_properties(0).total_memory)
+            )
     torch.set_num_threads(threads)
     _device = torch.device(name)
     return str(_device)

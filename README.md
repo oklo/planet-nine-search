@@ -1,11 +1,9 @@
 # Planet Nine Search
 
-Search TESS images for slow moving sources. Workers use Gaia-guided stellar
-subtraction, a joint-sector Hough search, and native-cadence PRF photometry.
-Negative-flux and reversed-motion searches provide comparison controls.
-
-Requires Linux or macOS, Python 3.11–3.13, and 32 GB RAM. Apple Silicon GPU
-execution is validated; CPU execution is slower. CUDA support is experimental.
+Search TESS images using Gaia-guided stellar subtraction, joint-sector Hough
+accumulation, and native-cadence photometry. Requires Python 3.11–3.13 on Linux
+or macOS and 32 GB RAM. Apple Silicon can accelerate the Hough search; final
+photometry uses sparse CPU float64 scoring. CUDA is experimental.
 
 ```sh
 git clone https://github.com/oklo/planet-nine-search.git
@@ -16,15 +14,18 @@ pip install .
 p9 worker --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
-The worker registers with [oklo.org](https://oklo.org/planet-nine/), claims one
-field, downloads its public TESS pixels, and submits a compact result. Run it
-again for another field, or add `--continuous`. Claims expire if a worker
-disappears. Downloads resume; completed evidence stays in your work directory.
-Use `p9 status` to inspect the shared queue and `p9 --help` for local runs.
+Workers need operator approval at [oklo.org](https://oklo.org/planet-nine/).
+Each worker claims one field and retains its evidence locally. Results await a
+full replay on the trusted master before acceptance. Use `p9 status` for queue
+counts and `p9 --help` for local runs and review. Defaults limit each search to
+24 GiB resident memory and four hours; disk and memory limits are adjustable.
 
-Scores are conditional statistics, **not discovery significance**. Submitted
-results remain unverified. A field with no flags is not a calibrated exclusion;
-injection recovery and independent candidate review are separate requirements.
+Scores are conditional statistics, not discovery significance. Injection
+recovery measures sensitivity under the declared models; it does not establish
+population-wide exclusion. Empirical templates for T < 12 stars are enabled
+per sector in each task, because their benefit varies between fields.
 
-See [the method](docs/method.md) for scope and [coordination](coordinator/README.md)
-for hosting your own queue. Tests: `pip install '.[dev]' && pytest`.
+[Method](docs/method.md) · [Coordinator](coordinator/README.md) ·
+[Tested macOS/Python 3.12 environment](environments/macos-arm64-python312.txt)
+
+Tests: `pip install '.[dev]' && pytest`. Coordinator tests require PHP/SQLite.

@@ -1,12 +1,15 @@
 """Command line entry points; scientific imports are deferred until a search."""
 
 import argparse
+import math
 import os
 import sys
 from pathlib import Path
 
 from .client import DEFAULT_COORDINATOR, Client
-from .storage import GIB, DirectoryLock, DiskBudget, canonical, read_json, sha256
+from .limits import ResourceGuard
+from .network import DEFAULT_ORIGINS
+from .storage import GIB, DirectoryLock, DiskBudget, canonical, load_bounded, read_json, sha256
 
 
 def parser():
@@ -28,7 +31,13 @@ def parser():
     )
     local = commands.add_parser("run", help="search a downloaded field specification locally")
     local.add_argument("task", type=Path)
-    for command in (worker, local):
+    reviewer = commands.add_parser(
+        "review", help="fully replay an exported submission on the trusted master"
+    )
+    reviewer.add_argument("task", type=Path)
+    reviewer.add_argument("submission", type=Path)
+    reviewer.add_argument("--key", type=Path, required=True)
+    for command in (worker, local, reviewer):
         command.add_argument("--directory", type=Path, default=Path("work"))
         command.add_argument(
             "--max-disk-gb",
@@ -41,6 +50,9 @@ def parser():
         )
         command.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
         command.add_argument("--threads", type=int, default=4)
+        command.add_argument("--max-memory-gb", type=float, default=24.0)
+        command.add_argument("--max-hours", type=float, default=4.0)
+        command.add_argument("--bundle-origin", action="append", default=list(DEFAULT_ORIGINS))
     return root
 
 
@@ -50,9 +62,16 @@ def main(argv=None):
         if args.command == "status":
             print(canonical(Client(args.coordinator).request("status")))
             return 0
-        budget = DiskBudget(args.directory, int(args.max_disk_gb * GIB), int(args.reserve_gb * GIB))
+        if not all(math.isfinite(v) and v > 0 for v in (args.max_memory_gb, args.max_hours)):
+            raise ValueError("Positive finite memory and runtime limits required")
         if args.threads < 1:
             raise ValueError("threads must be positive")
+        if args.command == "review":
+            from .review import review
+
+            review(args)
+            return 0
+        budget = DiskBudget(args.directory, int(args.max_disk_gb * GIB), int(args.reserve_gb * GIB))
         budget.check()
         if args.command == "worker":
             from .worker import work
@@ -66,8 +85,8 @@ def main(argv=None):
         from .search import run
         from .tasks import validate_task
 
-        runtime.configure(args.device, args.threads)
-        spec = validate_task(read_json(args.task))
+        runtime.configure(args.device, args.threads, max_memory_bytes=int(args.max_memory_gb * GIB))
+        spec = validate_task(load_bounded(args.task))
         folder = args.directory.resolve() / spec["task_id"]
         result = folder / "result.json"
         if result.exists():
@@ -79,8 +98,11 @@ def main(argv=None):
                     raise ValueError("Completed result evidence changed")
             print(f"Completed result retained: {result}")
         else:
-            with DirectoryLock(args.directory, "search.lock"):
-                run(spec, folder, budget)
+            with (
+                DirectoryLock(args.directory, "search.lock"),
+                ResourceGuard(int(args.max_memory_gb * GIB), args.max_hours * 3600),
+            ):
+                run(spec, folder, budget, origins=args.bundle_origin)
         return 0
     except KeyboardInterrupt:
         print("Stopped; local evidence retained.", file=sys.stderr)

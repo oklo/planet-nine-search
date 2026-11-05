@@ -2,7 +2,6 @@
 
 import numpy as np
 
-from .runtime import device
 from .science.adaptive_covariance import AdaptiveTemporalProjector
 from .science.catalog_covariance import catalog_features
 from .science.catalog_star_scene import stellar_columns
@@ -12,6 +11,7 @@ from .science.detector_background import detector_background_columns
 from .science.noise_weighted_temporal_basis import learn_noise_weighted_basis
 from .science.preprocessing import gaia_design, linear_scene_subtract, preprocess
 from .science.scene_likelihood import SceneProjector, scene_tangents, separable_weights
+from .science.sparse_composed import SparseComposedScorer
 from .science.temporal_pixel_quality_weighted import weighted_persistent_steps
 
 
@@ -21,7 +21,7 @@ class QualityRejected(RuntimeError):
         self.fraction = fraction
 
 
-def fit(sector, raw_override=None, fixed_weights=None):
+def fit(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False):
     geom, meta = sector.geom, sector.meta
     with np.load(sector.directory / "stars.npz") as archive:
         stars = dict(archive)
@@ -43,11 +43,17 @@ def fit(sector, raw_override=None, fixed_weights=None):
     else:
         u, v = fixed_weights
     corrected, _ = linear_scene_subtract(raw, geom["keep"], gaia)
+    selected = (
+        np.isfinite(stars["tmag"]) & (stars["tmag"] < 12.0)
+        if empirical_stars
+        else np.ones(len(stars["tmag"]), dtype=bool)
+    )
     tangent, _ = scene_tangents(
         np.median(raw[geom["keep"]], axis=0),
         np.median(corrected[geom["keep"]], axis=0),
-        stars["xy"],
-        stars["tmag"],
+        stars["xy"][selected],
+        stars["tmag"][selected],
+        bright_stars=int(selected.sum()) if empirical_stars else 0,
     )
     del corrected
     design = np.column_stack([gaia, tangent, detector_background_columns(raw.shape[1:], order=2)])
@@ -92,7 +98,7 @@ def fit(sector, raw_override=None, fixed_weights=None):
     return {
         "scene": scene,
         "temporal": temporal,
-        "projector": ComposedTemporalScorer(scene, temporal, device=device()),
+        "projector": SparseComposedScorer(ComposedTemporalScorer(scene, temporal, device="cpu")),
         "weights": (u, v),
         "masked_fraction": fraction,
         "quality": quality,

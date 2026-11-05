@@ -6,14 +6,13 @@ import zipfile
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
-import requests
-
-from . import USER_AGENT
+from .bundles import MAX_EXPANDED, validate_bundle
+from .network import DEFAULT_ORIGINS, download, public_url
+from .policy import VERSION, validate_policy
 from .storage import canonical, sha256
 
-PROTOCOL = "tess-gaia-hough-v1"
+PROTOCOL = VERSION
 MAX_BUNDLE = 64 * 2**20
-MAX_EXPANDED = 128 * 2**20
 
 
 def validate_url(url):
@@ -21,6 +20,7 @@ def validate_url(url):
     local = parsed.hostname in {"127.0.0.1", "localhost", "::1"}
     if (
         (parsed.scheme != "https" and not (local and parsed.scheme == "http"))
+        or not parsed.hostname
         or parsed.username
         or parsed.password
     ):
@@ -45,8 +45,9 @@ def validate_task(spec):
         "bundle_bytes",
         "required_bytes",
         "injections",
+        "policy",
     }
-    if set(spec) != required or spec["protocol"] != PROTOCOL:
+    if not isinstance(spec, dict) or set(spec) != required or spec["protocol"] != PROTOCOL:
         raise ValueError("Unsupported task schema or protocol")
     if not isinstance(spec["label"], str) or len(spec["label"]) > 100:
         raise ValueError("Invalid field label")
@@ -65,6 +66,7 @@ def validate_task(spec):
     if not re.fullmatch(r"[a-f0-9]{64}", spec["bundle_sha256"]) or spec["task_id"] != task_id(spec):
         raise ValueError("Task identity differs from its contents")
     validate_url(spec["bundle_url"])
+    validate_policy(spec["policy"], sectors)
     if type(spec["bundle_bytes"]) is not int or not 1 <= spec["bundle_bytes"] <= MAX_BUNDLE:
         raise ValueError("Invalid bundle size")
     if (
@@ -78,8 +80,12 @@ def validate_task(spec):
 
     for item in spec["injections"]:
         if (
-            set(item) != {"parameters", "radial_velocity", "flux", "label"}
+            not isinstance(item, dict)
+            or set(item) != {"parameters", "radial_velocity", "flux", "label"}
+            or not isinstance(item["parameters"], list)
             or len(item["parameters"]) != 5
+            or not isinstance(item["label"], str)
+            or len(item["label"]) > 100
         ):
             raise ValueError("Invalid injection schema")
         if not all(
@@ -92,50 +98,25 @@ def validate_task(spec):
     return spec
 
 
-def fetch_bundle(spec, directory, budget):
+def fetch_bundle(spec, directory, budget, origins=DEFAULT_ORIGINS):
     validate_task(spec)
+    public_url(spec["bundle_url"], origins)
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     archive = directory / "field.zip"
     if not archive.exists() or sha256(archive) != spec["bundle_sha256"]:
         budget.check(spec["bundle_bytes"] + MAX_EXPANDED)
         temporary = archive.with_suffix(".part")
-        with requests.get(
-            spec["bundle_url"], stream=True, timeout=(15, 120), headers={"User-Agent": USER_AGENT}
-        ) as response:
-            response.raise_for_status()
-            validate_url(response.url)
-            count = 0
-            with temporary.open("wb") as output:
-                for block in response.iter_content(1024 * 1024):
-                    count += len(block)
-                    if count > spec["bundle_bytes"]:
-                        raise ValueError("Bundle exceeds declared size")
-                    output.write(block)
-        if count != spec["bundle_bytes"] or sha256(temporary) != spec["bundle_sha256"]:
-            raise ValueError("Bundle checksum or size differs")
-        temporary.replace(archive)
-    expected = {"motion_masks.npz"}
-    for sid in spec["sectors"]:
-        expected.add(f"observer_s{sid}.npz")
-        expected.update(
-            f"s{sid:04d}/{name}"
-            for name in [
-                "metadata.json",
-                "cadences.npz",
-                "geometry.npz",
-                "native_wcs.npz",
-                "wcs.txt",
-                "stars.npz",
-            ]
-        )
+        try:
+            download(spec["bundle_url"], temporary, spec["bundle_bytes"], origins)
+            if sha256(temporary) != spec["bundle_sha256"]:
+                raise ValueError("Bundle checksum differs")
+            temporary.replace(archive)
+        finally:
+            temporary.unlink(missing_ok=True)
     data = directory / "data"
     with zipfile.ZipFile(archive) as bundle:
-        records = bundle.infolist()
-        if len(records) != len(expected) or {r.filename for r in records} != expected:
-            raise ValueError("Unexpected or duplicate bundle members")
-        if sum(r.file_size for r in records) > MAX_EXPANDED:
-            raise ValueError("Expanded bundle exceeds limit")
+        records = validate_bundle(bundle, spec["sectors"])
         budget.check(sum(r.file_size for r in records))
         for record in records:
             path = data.joinpath(*PurePosixPath(record.filename).parts)

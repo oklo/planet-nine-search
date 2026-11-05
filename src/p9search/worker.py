@@ -74,7 +74,10 @@ def work(args, budget):
             },
         )
         if claim["task"] is None:
-            print("No eligible field is available for this disk allocation.", flush=True)
+            print(
+                claim.get("reason", "No eligible field is available for this disk allocation."),
+                flush=True,
+            )
             if not args.continuous:
                 return
             time.sleep(min(60, claim.get("retry_after", 60)))
@@ -113,7 +116,13 @@ def work(args, budget):
                     args.device,
                     "--threads",
                     str(args.threads),
+                    "--max-memory-gb",
+                    str(args.max_memory_gb),
+                    "--max-hours",
+                    str(args.max_hours),
                 ]
+                for origin in args.bundle_origin:
+                    command.extend(["--bundle-origin", origin])
                 environment = dict(os.environ)
                 for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
                     environment[name] = str(args.threads)

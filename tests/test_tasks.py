@@ -3,6 +3,7 @@ import zipfile
 
 import pytest
 
+from p9search.policy import default_policy
 from p9search.storage import DiskBudget
 from p9search.tasks import PROTOCOL, fetch_bundle, task_id, validate_task
 
@@ -10,10 +11,11 @@ from p9search.tasks import PROTOCOL, fetch_bundle, task_id, validate_task
 def specification(**changes):
     value = {
         "protocol": PROTOCOL,
+        "policy": default_policy(),
         "label": "test field",
         "sectors": [1, 28, 68],
         "reference_sector": 68,
-        "bundle_url": "https://example.org/field.zip",
+        "bundle_url": "https://oklo.org/field.zip",
         "bundle_sha256": "0" * 64,
         "bundle_bytes": 1000,
         "required_bytes": 2**30,

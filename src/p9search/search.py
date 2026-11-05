@@ -10,9 +10,11 @@ import numpy as np
 
 from . import __version__, runtime
 from .archive import acquire
-from .calibration import response_check
+from .calibration import has_source, response_admitted, response_check, unchanged_pixels
 from .foreground import QualityRejected, fit
 from .injections import inject
+from .policy import check_prior_geometry, screen_rows
+from .provenance import execution_manifest, source_hash
 from .science.audited_hough_selector import AuditedHoughSearch
 from .science.geometry import SectorGeometry, SkyFrame, grids
 from .science.hough_maps import prepare_foreground_covariance_maps
@@ -39,7 +41,9 @@ def control_threshold(arms):
     flags = [
         r
         for r in arms["physical"]
-        if r["native"] is not None and r["native"]["coherent_score"] > threshold
+        if r["native"] is not None
+        and r["native"]["coherent_score"] > threshold
+        and r.get("prior", {}).get("eligible_for_p9_followup", True)
     ]
     return threshold, flags, maxima
 
@@ -84,10 +88,13 @@ def score(proposals, sectors, prepared, progress):
     return records
 
 
-def run(spec, directory, budget):
+def run(spec, directory, budget, *, origins=("https://oklo.org",)):
     validate_task(spec)
     directory = Path(directory)
     start = time.monotonic()
+    launch = execution_manifest()
+    write_json(directory / "launch.json", launch)
+    policy = spec["policy"]
 
     def progress(stage, **details):
         budget.check()
@@ -95,7 +102,7 @@ def run(spec, directory, budget):
         write_json(directory / "progress.json", record)
         print(canonical(record), flush=True)
 
-    data = fetch_bundle(spec, directory, budget)
+    data = fetch_bundle(spec, directory, budget, origins)
     frame = SkyFrame(data / f"s{spec['reference_sector']:04d}")
     sectors = [SectorGeometry(data / f"s{sid:04d}", frame) for sid in spec["sectors"]]
     report = {
@@ -104,6 +111,8 @@ def run(spec, directory, budget):
         "protocol": PROTOCOL,
         "package_version": __version__,
         "device": str(runtime.device()),
+        "policy": policy,
+        "launch": launch,
         "dependencies": {
             name: importlib.metadata.version(name)
             for name in ["numpy", "scipy", "torch", "astropy", "tesscube", "lkprf"]
@@ -118,12 +127,9 @@ def run(spec, directory, budget):
         report["inputs"] = {
             str(p.relative_to(directory)): read_json(p) for p in data.glob("s*/download.json")
         }
-        report["source_sha256"] = hashlib.sha256(
-            b"".join(
-                p.relative_to(Path(__file__).parent).as_posix().encode() + p.read_bytes()
-                for p in sorted(Path(__file__).parent.rglob("*.py"))
-            )
-        ).hexdigest()
+        report["source_sha256"] = source_hash()
+        if report["source_sha256"] != launch["source_sha256"]:
+            raise RuntimeError("Scientific source changed during execution")
         report["state"] = state
         report["elapsed_seconds"] = time.monotonic() - start
         report["artifacts"] = {
@@ -139,7 +145,10 @@ def run(spec, directory, budget):
         acquire(sector.directory, budget, progress)
         progress("fit foreground", sector=int(sector.meta["sector"]))
         try:
-            model = fit(sector)
+            model = fit(
+                sector,
+                empirical_stars=int(sector.meta["sector"]) in policy["empirical_star_sectors"],
+            )
         except QualityRejected as error:
             report["quality"].append(
                 {"sector": int(sector.meta["sector"]), "masked_fraction": error.fraction}
@@ -153,6 +162,7 @@ def run(spec, directory, budget):
         gc.collect()
         runtime.release()
     full, grid = grids(sectors)
+    check_prior_geometry(policy["prior"], frame, grid)
     local = {s["inverse_distance"]: s["local_angular"] for s in full}
     with np.load(data / "motion_masks.npz") as masks:
         specs = restrict_specs(full, [masks[f"slice_{i:02d}"] for i in range(len(full))])
@@ -200,6 +210,7 @@ def run(spec, directory, budget):
             proposals(prepared, "reversed", orientation=-1.0)[1.0], sectors, prepared, progress
         ),
     }
+    screen_rows(arms["physical"], policy["prior"])
     for arm, rows in arms.items():
         write_json(directory / f"{arm}-candidates.json", rows)
     threshold, flags, maxima = control_threshold(arms)
@@ -222,7 +233,9 @@ def run(spec, directory, budget):
             )
             if coverage(path, sector.cadences["native_keep"])["stamp_overlap_fraction"] > 0:
                 template, region = bin_template(path, sector.meta, sector.cadences)
-                forced[index, si] = model["projector"].score(template, region)
+                forced[index, si] = (
+                    model["projector"].score(template, region) if has_source(template) else None
+                )
                 del template
     weights = [p["weights"] for p in prepared]
     prepared.clear()
@@ -252,28 +265,38 @@ def run(spec, directory, budget):
                     "native injection refit", injection=index, sector=int(sector.meta["sector"])
                 )
                 raw = inject(sector, path, case["flux"])
-                model = fit(sector, raw_override=raw, fixed_weights=weight)
+                model = fit(
+                    sector,
+                    raw_override=raw,
+                    fixed_weights=weight,
+                    empirical_stars=int(sector.meta["sector"]) in policy["empirical_star_sectors"],
+                )
                 if (index, si) in forced:
                     template, region = bin_template(path, sector.meta, sector.cadences)
-                    after = model["projector"].score(template, region)
                     baseline = np.load(sector.directory / "raw.npy", mmap_mode="r")
-                    check = response_check(
-                        baseline,
-                        raw,
-                        template,
-                        region,
-                        sector.geom["keep"],
-                        case["flux"],
-                        forced[index, si],
-                        after,
+                    present = has_source(template)
+                    if not present:
+                        unchanged_pixels(baseline, raw)
+                        check = {"assessed": True, "native_pixels_unchanged": True}
+                    else:
+                        after = model["projector"].score(template, region)
+                        check = response_check(
+                            baseline,
+                            raw,
+                            template,
+                            region,
+                            sector.geom["keep"],
+                            case["flux"],
+                            forced[index, si],
+                            after,
+                        )
+                    response["responses"].append(
+                        {"sector": int(sector.meta["sector"]), "has_source": present, **check}
                     )
-                    response["responses"].append({"sector": int(sector.meta["sector"]), **check})
                     del template, baseline
                 injected.append(prepare(sector, model))
                 del raw, model
-            response["assessed"] = len(response["responses"]) >= 3 and all(
-                r["assessed"] for r in response["responses"]
-            )
+            response["assessed"] = response_admitted(response["responses"])
             if not response["assessed"]:
                 response["rejection"] = "Native source response or rounding fidelity failed"
                 report["injections"].append(response)
@@ -293,8 +316,14 @@ def run(spec, directory, budget):
                 {"distances": distances[:, 0].tolist(), "context": context},
             )
             scored = score(nearby, sectors, injected, progress)
+            screen_rows(scored, policy["prior"])
             write_json(directory / f"injection-{index}-candidates.json", scored)
-            scores = [r["native"]["coherent_score"] for r in scored if r["native"] is not None]
+            scores = [
+                r["native"]["coherent_score"]
+                for r in scored
+                if r["native"] is not None
+                and r.get("prior", {}).get("eligible_for_p9_followup", True)
+            ]
             response.update(
                 nearby_proposals=len(nearby),
                 best_score=max(scores) if scores else None,

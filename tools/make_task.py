@@ -8,7 +8,9 @@ from pathlib import Path
 
 import numpy as np
 
+from p9search.bundles import ARRAYS, validate_bundle
 from p9search.catalog import catalog
+from p9search.policy import default_policy
 from p9search.storage import GIB, read_json, sha256, write_json
 from p9search.tasks import PROTOCOL, task_id, validate_task
 
@@ -31,6 +33,8 @@ def main():
         "--base-url", required=True, help="public HTTPS directory for the content-addressed zip"
     )
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--empirical-star-sectors", type=int, nargs="*", default=[])
+    parser.add_argument("--prior", type=Path, help="Reviewed local-brown-prior-v1 context JSON")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.out) as temporary:
@@ -62,6 +66,15 @@ def main():
                 required += (
                     (len(cadences["native_time"]) + 4 * len(cadences["time"])) * 140 * 140 * 4
                 )
+        # Publish only arrays consumed by the worker, without catalog annotations.
+        for path in staging.rglob("*.npz"):
+            keys = ARRAYS.get(path.name, {"time": None, "position": None})
+            with np.load(path, allow_pickle=False) as saved:
+                arrays = {
+                    key: np.ascontiguousarray(saved[key]) if saved[key].ndim else saved[key]
+                    for key in keys
+                }
+            np.savez_compressed(path, **arrays)
         shutil.copyfile(args.masks, staging / "motion_masks.npz")
         archive = args.out / "field.partial.zip"
         with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
@@ -72,11 +85,18 @@ def main():
                     )
                     info.compress_type = zipfile.ZIP_DEFLATED
                     bundle.writestr(info, path.read_bytes())
+    with zipfile.ZipFile(archive) as bundle:
+        validate_bundle(bundle, args.sectors)
     digest = sha256(archive)
     target = args.out / f"{digest}.zip"
     archive.replace(target)
     spec = {
         "protocol": PROTOCOL,
+        "policy": {
+            **default_policy(),
+            "empirical_star_sectors": args.empirical_star_sectors,
+            "prior": read_json(args.prior) if args.prior else None,
+        },
         "label": args.label,
         "sectors": args.sectors,
         "reference_sector": args.reference,

@@ -36,3 +36,24 @@ def response_check(baseline, injected, template, region, keep, flux, before, aft
         "template_rms_error": rms,
         "relative_template_error": relative,
     }
+
+
+def has_source(template):
+    template = np.asarray(template)
+    if not np.isfinite(template).all():
+        raise ValueError("Nonfinite source template")
+    return bool(np.any(template != 0))
+
+
+def unchanged_pixels(baseline, injected):
+    if (
+        baseline.shape != injected.shape
+        or baseline.dtype != injected.dtype
+        or not np.array_equal(baseline.view(np.uint8), injected.view(np.uint8))
+    ):
+        raise ValueError("An empty source template changed native-injected pixels")
+
+
+def response_admitted(responses):
+    informative = [r for r in responses if r["has_source"]]
+    return len(informative) >= 3 and all(r["assessed"] for r in responses)

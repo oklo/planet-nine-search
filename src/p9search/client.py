@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 
 from . import USER_AGENT
-from .storage import read_json, write_json
+from .storage import MAX_REPORT, bounded_json, read_json, write_json
 from .tasks import validate_url
 
 DEFAULT_COORDINATOR = "https://oklo.org/planet-nine/api.php"
@@ -38,7 +38,13 @@ class Client:
         if self.credentials.get("token"):
             headers["Authorization"] = "Bearer " + self.credentials["token"]
         if action == "status":
-            response = self.session.get(self.endpoint, params={"action": action}, timeout=(10, 30))
+            response = self.session.get(
+                self.endpoint,
+                params={"action": action},
+                timeout=(10, 30),
+                allow_redirects=False,
+                stream=True,
+            )
         else:
             response = self.session.post(
                 self.endpoint,
@@ -47,11 +53,21 @@ class Client:
                 headers=headers,
                 timeout=(10, 30),
                 allow_redirects=False,
+                stream=True,
             )
         try:
-            payload = response.json()
+            content = bytearray()
+            for block in response.iter_content(65536):
+                content.extend(block)
+                if len(content) > MAX_REPORT:
+                    raise ValueError("Coordinator response exceeds limit")
+            payload = bounded_json(content)
+            if not isinstance(payload, dict):
+                raise ValueError("Coordinator response must be an object")
         except ValueError as error:
             raise CoordinatorError(response.status_code, "Non-JSON response") from error
+        finally:
+            response.close()
         if not response.ok or "error" in payload:
             raise CoordinatorError(response.status_code, payload.get("error", "request failed"))
         return payload

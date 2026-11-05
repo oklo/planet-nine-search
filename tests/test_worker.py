@@ -104,6 +104,9 @@ def test_lost_lease_stops_child_and_never_submits(tmp_path, monkeypatch):
         reserve_gb=0,
         device="cpu",
         threads=1,
+        max_memory_gb=24,
+        max_hours=4,
+        bundle_origin=["https://oklo.org"],
     )
     with pytest.raises(RuntimeError, match="Lease"):
         worker.work(args, DiskBudget(tmp_path, 2**30, 0))

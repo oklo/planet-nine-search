@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "planet-nine-search"
-version = "0.1.0"
+version = "0.2.0"
 description = "Coordinated searches for slow moving sources in TESS images"
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
@@ -13,7 +13,7 @@ authors = [{name = "Greg Laughlin"}]
 dependencies = [
   "numpy>=1.26,<3", "scipy>=1.13,<2", "torch>=2.5,<3",
   "astropy>=6,<8", "tesscube>=1.2,<2", "lkprf>=1.1,<2",
-  "requests>=2.32,<3", "tqdm>=4.66,<5",
+  "requests>=2.32,<3", "psutil>=6,<8", "tqdm>=4.66,<5",
 ]
 
 [project.optional-dependencies]
@@ -39,4 +39,4 @@ select = ["E4", "E7", "E9", "F", "I"]
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/coordinator", "/tools", "/examples", "/docs", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/pyproject.toml"]
+include = ["/src", "/tests", "/coordinator", "/tools", "/examples", "/docs", "/environments", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/pyproject.toml"]
