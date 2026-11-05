@@ -390,8 +390,8 @@ async function updateQueue() {
     if (!status.tasks || typeof status.tasks !== 'object') throw new Error('Invalid queue status');
     const count = name => Number.isInteger(Number(status.tasks[name] ?? 0)) && Number(status.tasks[name] ?? 0) >= 0 ? Number(status.tasks[name] ?? 0) : 0;
     const expired = Math.min(count('leased'), Math.max(0, Number(status.expired_leases) || 0));
-    $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} submitted`;
-    $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. Submissions await review.`;
+    $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} awaiting verification`;
+    $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. A lease ends at submission while independent verification continues.`;
   } catch {
     $('queue-status').textContent = 'Live queue temporarily unavailable';
     $('queue-time').textContent = 'The published map is still available. Queue status will retry automatically.';
