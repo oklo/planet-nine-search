@@ -27,16 +27,14 @@
     <header class="page-heading">
       <p class="eyebrow">TESS / search coordination</p>
       <h1>planet nine</h1>
-      <p class="intro">A coordinated search</p>
       <p id="snapshot-time" class="small">Loading the latest published search map…</p>
     </header>
     <div id="load-error" role="alert" hidden>The search map could not load. Please reload the page.</div>
     <noscript><p>The interactive map needs JavaScript. The <a href="snapshot.json">search snapshot</a> remains available to download.</p></noscript>
     <div class="expectation-metrics" aria-label="Planet expectation estimates">
-      <div><strong id="recoverable-expectation">—</strong><span>expectation recoverable</span><small>100 machine-day benchmark projection</small></div>
-      <div><strong id="recovered-expectation">—</strong><span>expectation recovered</span><small>accumulated injection-based sensitivity</small></div>
+      <div><strong id="recoverable-expectation">—</strong><span>expectation recoverable</span></div>
+      <div><strong id="recovered-expectation">—</strong><span>expectation recovered</span></div>
     </div>
-    <p class="expectation-caption small">Fractions of one planet in expectation, assuming P(planet nine exists) = 0.2. Sensitivity estimates, not discoveries.</p>
     <div class="metrics" aria-label="Search snapshot totals">
       <div><strong id="searched-count">—</strong><span>fields searched</span></div>
       <div><strong id="followup-count">—</strong><span>flags awaiting follow-up</span></div>
@@ -66,15 +64,15 @@
           <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons or field selector to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
-            <ellipse cx="500" cy="250" rx="500" ry="250" fill="#fcfbfd"/>
-            <image href="prior.png" x="0" y="0" width="1000" height="500"/>
+            <ellipse cx="500" cy="250" rx="500" ry="250" fill="var(--map-surface)"/>
+            <image id="prior-density" href="prior.png" x="0" y="0" width="1000" height="500"/>
             <g id="graticule"></g>
             <g id="reference-curves"></g>
             <g id="fields"></g>
             <g id="field-labels" aria-hidden="true"></g>
             <g id="coordinates" aria-hidden="true"></g>
           </g>
-          <ellipse cx="500" cy="250" rx="500" ry="250" fill="none" stroke="#ccc7d1" vector-effect="non-scaling-stroke"/>
+          <ellipse cx="500" cy="250" rx="500" ry="250" fill="none" stroke="var(--map-outline)" vector-effect="non-scaling-stroke"/>
         </svg>
         <span id="cursor-coordinates" aria-hidden="true"></span>
       </div>

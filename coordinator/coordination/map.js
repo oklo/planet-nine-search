@@ -1,13 +1,13 @@
 'use strict';
 
 const STATES = {
-  complete: {label: 'Search + recovery complete', color: '#087e55'},
-  needs_followup: {label: 'Follow-up open', color: '#b42d85'},
-  calibration_pending: {label: 'Flags cleared · calibration pending', color: '#b5771b'},
-  validation_failed: {label: 'Validation failed', color: '#a86800'},
-  preflight_failed: {label: 'Stopped before search', color: '#b44352'},
-  deferred: {label: 'Deferred / incomplete', color: '#697587', style: 'open'},
-  queued: {label: 'Queued', color: '#2478b4', style: 'dashed'},
+  complete: {label: 'Search + recovery complete', color: 'var(--field-complete)'},
+  needs_followup: {label: 'Follow-up open', color: 'var(--field-followup)'},
+  calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
+  validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
+  preflight_failed: {label: 'Stopped before search', color: 'var(--field-preflight)'},
+  deferred: {label: 'Deferred / incomplete', color: 'var(--field-deferred)', style: 'open'},
+  queued: {label: 'Queued', color: 'var(--field-queued)', style: 'dashed'},
 };
 const $ = id => document.getElementById(id);
 const sky = $('sky');
@@ -90,25 +90,25 @@ function insidePolygon([x, y], polygon) {
 
 function drawMap() {
   for (let ra = 0; ra <= 360; ra += 30) {
-    curve(Array.from({length: 181}, (_, i) => [ra, i - 90]), {stroke: '#d9d4e0', 'stroke-width': .6}, $('graticule'));
+    curve(Array.from({length: 181}, (_, i) => [ra, i - 90]), {stroke: 'var(--map-grid)', 'stroke-width': .6}, $('graticule'));
   }
   for (let dec = -60; dec <= 60; dec += 30) {
-    curve(Array.from({length: 361}, (_, ra) => [ra, dec]), {stroke: '#d9d4e0', 'stroke-width': .6}, $('graticule'));
+    curve(Array.from({length: 361}, (_, ra) => [ra, dec]), {stroke: 'var(--map-grid)', 'stroke-width': .6}, $('graticule'));
   }
-  curve(data.curves.galactic, {stroke: '#303843', 'stroke-width': 1.1, 'stroke-dasharray': '5 4'}, $('reference-curves'));
-  curve(data.curves.ecliptic, {stroke: '#b66b0c', 'stroke-width': 1.1}, $('reference-curves'));
+  curve(data.curves.galactic, {stroke: 'var(--map-galactic)', 'stroke-width': 1.1, 'stroke-dasharray': '5 4'}, $('reference-curves'));
+  curve(data.curves.ecliptic, {stroke: 'var(--map-ecliptic)', 'stroke-width': 1.1}, $('reference-curves'));
   for (const field of data.fields) {
     const state = STATES[field.state];
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
     svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
     const paths = field.footprints.map(footprint => svgNode('path', {
       d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: state.color,
-      'fill-opacity': .07, 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
+      'fill-opacity': 'var(--field-fill)', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
       'stroke-dasharray': field.state === 'queued' ? '4 3' : 'none',
       'data-sector': footprint.sector,
     }, group));
     const [x, y] = project(field.ra_deg, field.dec_deg);
-    const dot = svgNode('circle', {cx: x, cy: y, r: 3, fill: state.style ? '#fff' : state.color,
+    const dot = svgNode('circle', {cx: x, cy: y, r: 3, fill: state.style ? 'var(--map-surface)' : state.color,
       stroke: state.color, 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke'}, group);
     const label = svgNode('g', {fill: state.color, 'data-code': field.code}, $('field-labels'));
     const codeText = svgNode('text', {'font-size': 12}, label);
@@ -207,7 +207,7 @@ function emphasizeField() {
       const sectorMatches = selectedSector === null || Number(path.dataset.sector) === selectedSector;
       path.style.opacity = active ? (sectorMatches ? 1 : .16) : (selected ? .35 : 1);
       path.setAttribute('stroke-width', active && sectorMatches ? 2 : 1.1);
-      path.setAttribute('fill-opacity', active && sectorMatches ? .12 : .07);
+      path.setAttribute('fill-opacity', active && sectorMatches ? 'var(--field-fill-selected)' : 'var(--field-fill)');
     }
     nodes.dot.style.opacity = selected && !active ? .45 : 1;
     if (active) $('fields').append(nodes.group);
@@ -390,7 +390,7 @@ async function initialize() {
     $('field-count').textContent = data.fields.length;
     $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     if (data.expectation_forecast) {
-      $('recoverable-expectation').textContent = `≈ ${data.expectation_forecast.value.toPrecision(2)}`;
+      $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
       $('forecast-note').textContent = 'The recoverable expectation is the earlier 100 machine-day projection from the initial two-worker benchmark. It assumes new, disjoint fields with comparable brightness and crowding. It is a sparse planning estimate, not a calibrated estimate of the total sky-wide recoverable probability; subsequent fields can change the projected rate.';
     } else {
       $('recoverable-expectation').textContent = 'Not estimated';
