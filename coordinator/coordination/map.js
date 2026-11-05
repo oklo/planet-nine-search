@@ -10,6 +10,26 @@ const STATES = {
   queued: {label: 'Queued', color: 'var(--field-queued)', style: 'dashed'},
 };
 const $ = id => document.getElementById(id);
+const metricDescriptions = {
+  recoverable: 'A projection from two benchmark fields, assuming comparable fields remain to search and a 20% chance that planet nine exists. The full searchable sky has not yet been calibrated.',
+  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists.',
+  searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
+  flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
+  fields: 'All fields shown here, including completed searches, queued fields, and fields stopped by quality checks. Overlapping sector footprints can belong to the same field.',
+};
+const metricInfo = $('metric-info');
+for (const button of document.querySelectorAll('[data-metric]')) {
+  button.addEventListener('click', () => {
+    $('metric-title').textContent = button.textContent;
+    $('metric-description').textContent = metricDescriptions[button.dataset.metric];
+    metricInfo.showModal();
+  });
+}
+metricInfo.addEventListener('click', event => {
+  if (event.target !== metricInfo) return;
+  const box = metricInfo.getBoundingClientRect();
+  if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) metricInfo.close();
+});
 const sky = $('sky');
 const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 const MAX_ZOOM = 512;
@@ -384,7 +404,7 @@ async function initialize() {
     if (!response.ok) throw new Error('Snapshot unavailable');
     data = await response.json();
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
-    $('snapshot-time').textContent = `Map snapshot · ${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
+    $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
     $('field-count').textContent = data.fields.length;

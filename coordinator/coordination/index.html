@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css">
-  <script src="map.js" defer></script>
+  <link rel="stylesheet" href="map.css?v=2">
+  <script src="map.js?v=2" defer></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -32,14 +32,19 @@
     <div id="load-error" role="alert" hidden>The search map could not load. Please reload the page.</div>
     <noscript><p>The interactive map needs JavaScript. The <a href="snapshot.json">search snapshot</a> remains available to download.</p></noscript>
     <div class="expectation-metrics" aria-label="Planet expectation estimates">
-      <div><strong id="recoverable-expectation">—</strong><span>planet nines in expectation recoverable</span></div>
-      <div><strong id="recovered-expectation">—</strong><span>planet nines in expectation recovered</span></div>
+      <div><strong id="recoverable-expectation">—</strong><button class="metric-label" type="button" data-metric="recoverable" aria-haspopup="dialog" aria-controls="metric-info">planet nines in expectation recoverable</button></div>
+      <div><strong id="recovered-expectation">—</strong><button class="metric-label" type="button" data-metric="recovered" aria-haspopup="dialog" aria-controls="metric-info">planet nines in expectation recovered</button></div>
     </div>
     <div class="metrics" aria-label="Search snapshot totals">
-      <div><strong id="searched-count">—</strong><span>fields searched</span></div>
-      <div><strong id="followup-count">—</strong><span>flags awaiting follow-up</span></div>
-      <div><strong id="field-count">—</strong><span>fields in this map</span></div>
+      <div><strong id="searched-count">—</strong><button class="metric-label" type="button" data-metric="searched" aria-haspopup="dialog" aria-controls="metric-info">fields searched</button></div>
+      <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">flags awaiting follow-up</button></div>
+      <div><strong id="field-count">—</strong><button class="metric-label" type="button" data-metric="fields" aria-haspopup="dialog" aria-controls="metric-info">fields in this map</button></div>
     </div>
+    <dialog id="metric-info" aria-labelledby="metric-title" aria-describedby="metric-description">
+      <h2 id="metric-title"></h2>
+      <p id="metric-description"></p>
+      <form method="dialog"><button autofocus>Close</button></form>
+    </dialog>
     <section class="atlas" aria-labelledby="map-heading">
       <div class="map-heading">
         <h2 id="map-heading">Search atlas</h2>
