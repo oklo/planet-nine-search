@@ -39,6 +39,23 @@ function query(PDO $db, string $sql, array $args = []): PDOStatement
     return $statement;
 }
 
+function claim_limit(PDO $db, string $worker): int
+{
+    $value = query($db, "SELECT value FROM settings WHERE key=?", [
+        "claim_limit:" . $worker,
+    ])->fetchColumn();
+    if ($value === false) {
+        return 8;
+    }
+    $limit = filter_var($value, FILTER_VALIDATE_INT, [
+        "options" => ["min_range" => 1, "max_range" => 96],
+    ]);
+    if ($limit === false) {
+        throw new RuntimeException("Configured daily claim limit must be 1..96");
+    }
+    return $limit;
+}
+
 function transaction(PDO $db, callable $action): mixed
 {
     $db->exec("BEGIN IMMEDIATE");

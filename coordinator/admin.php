@@ -125,9 +125,10 @@ if ($action === "init") {
             event($db, "add", null, $spec["task_id"]);
             echo "Queued {$spec["task_id"]}\n";
         } elseif (
-            in_array($action, ["approve", "revoke", "rotate", "reserve"], true)
+            in_array($action, ["approve", "revoke", "rotate", "reserve", "claim-limit"], true)
         ) {
             $id = $argv[2] ?? "";
+            $audit_detail = "";
             if (
                 !query($db, "SELECT id FROM workers WHERE id=?", [
                     $id,
@@ -147,6 +148,19 @@ if ($action === "init") {
                     "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
                     ["reserve:" . $id, (string) $count],
                 );
+            } elseif ($action === "claim-limit") {
+                $count = filter_var($argv[3] ?? "", FILTER_VALIDATE_INT, [
+                    "options" => ["min_range" => 1, "max_range" => 96],
+                ]);
+                if ($count === false) {
+                    throw new RuntimeException("Daily claim limit must be 1..96");
+                }
+                query(
+                    $db,
+                    "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                    ["claim_limit:" . $id, (string) $count],
+                );
+                $audit_detail = (string) $count;
             } else {
                 if ($action !== "approve") {
                     foreach (
@@ -175,8 +189,8 @@ if ($action === "init") {
                     );
                 }
             }
-            event($db, $action, $id);
-            echo "Updated worker\n";
+            event($db, $action, $id, null, $audit_detail);
+            echo $action === "claim-limit" ? "Set daily claim limit to {$audit_detail}\n" : "Updated worker\n";
         } elseif ($action === "requeue") {
             $id = $argv[2] ?? "";
             $reason = trim($argv[3] ?? "");
@@ -316,7 +330,7 @@ if ($action === "init") {
             echo "Recorded trusted review; no automatic sensitivity credit\n";
         } else {
             throw new RuntimeException(
-                "Usage: admin.php init|migrate|add|workers|approve|revoke|rotate|reserve|requeue|expire|results|accept|backup|restore",
+                "Usage: admin.php init|migrate|add|workers|approve|revoke|rotate|reserve|claim-limit|requeue|expire|results|accept|backup|restore",
             );
         }
     });

@@ -21,7 +21,8 @@ and injection choices before enqueueing. Workers allow bundle downloads only
 from `https://oklo.org` unless given another trusted `--bundle-origin`.
 
 Registration creates a pending worker. Approval allows one active lease, one
-unreviewed result, and at most eight new claims per day. Leases renew for at most
+unreviewed result, and at most eight new claims per day by default (operator
+configurable from 1 to 96). Leases renew for at most
 six hours. Unreviewed results expire after 24 hours; the task returns to the
 queue and the worker needs reapproval. Three failed or expired leases also
 require reapproval. Worker reports never permanently retire tasks.
@@ -31,6 +32,7 @@ php admin.php requeue TASK_ID "reason"
 php admin.php revoke WORKER_ID
 php admin.php rotate WORKER_ID /private/replacement-token.txt
 php admin.php reserve WORKER_ID 4
+php admin.php claim-limit WORKER_ID 12
 php admin.php expire
 ```
 

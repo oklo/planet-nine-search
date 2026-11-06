@@ -104,17 +104,19 @@ function dispatch(PDO $db, string $action, array $body): array
                         "reason" => "awaiting review",
                     ];
                 }
+                $daily_limit = claim_limit($db, $worker["id"]);
                 if (
                     query(
                         $db,
                         "SELECT COUNT(*) FROM events WHERE worker_id=? AND action='claim' AND time>?",
                         [$worker["id"], $now - 86400],
-                    )->fetchColumn() >= 8
+                    )->fetchColumn() >= $daily_limit
                 ) {
                     return [
                         "task" => null,
                         "retry_after" => 300,
                         "reason" => "daily claim limit",
+                        "limit" => $daily_limit,
                     ];
                 }
                 $reserve = (int) query(

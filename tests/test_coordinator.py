@@ -311,6 +311,75 @@ def reserve(service, pair, count):
     return service[2]("reserve", worker_id, count)
 
 
+def set_claim_limit(service, pair, count):
+    worker_id = worker_id_for(service, pair)
+    return service[2]("claim-limit", worker_id, count)
+
+
+def worker_id_for(service, pair):
+    import hashlib
+
+    return service[1](
+        "SELECT id FROM workers WHERE token_hash=?", [hashlib.sha256(pair[0].encode()).hexdigest()]
+    )[0][0]
+
+
+def record_claims(service, pair, count):
+    worker_id = worker_id_for(service, pair)
+    for _ in range(count):
+        service[1]("INSERT INTO events(time,action,worker_id,task_id,detail) VALUES(?,?,?,?,?)",
+                   [int(time.time()), "claim", worker_id, None, "test quota history"])
+    return worker_id
+
+
+def test_default_daily_claim_limit_is_eight(coordinator):
+    task = seed(coordinator)
+    pair = worker(coordinator)
+    record_claims(coordinator, pair, 8)
+    response = claim(coordinator, pair)
+    assert response.status_code == 200
+    assert response.json()["reason"] == "daily claim limit"
+    assert response.json()["limit"] == 8
+    assert coordinator[1]("SELECT state FROM tasks WHERE id=?", [task["task_id"]])[0][0] == "pending"
+
+
+def test_configured_higher_quota_applies_to_only_selected_worker(coordinator):
+    for number in range(1, 14):
+        seed(coordinator, number)
+    selected, default = worker(coordinator), worker(coordinator)
+    assert set_claim_limit(coordinator, selected, 12).returncode == 0
+    selected_id = record_claims(coordinator, selected, 8)
+    record_claims(coordinator, default, 8)
+    response = claim(coordinator, selected)
+    assert response.json()["task"] is not None
+    assert claim(coordinator, default).json() == {
+        "task": None, "retry_after": 300, "reason": "daily claim limit", "limit": 8
+    }
+    assert coordinator[1]("SELECT detail FROM events WHERE worker_id=? AND action='claim-limit'", [selected_id])[0][0] == "12"
+
+
+def test_claim_limit_rejects_values_outside_one_to_ninety_six(coordinator):
+    pair = worker(coordinator)
+    assert set_claim_limit(coordinator, pair, 0).returncode != 0
+    assert set_claim_limit(coordinator, pair, 97).returncode != 0
+    assert set_claim_limit(coordinator, pair, "not-a-number").returncode != 0
+    worker_id = worker_id_for(coordinator, pair)
+    assert coordinator[1]("SELECT COUNT(*) FROM settings WHERE key=?", ["claim_limit:" + worker_id])[0][0] == 0
+
+
+def test_higher_daily_limit_does_not_bypass_pending_review(coordinator):
+    seed(coordinator, 1)
+    second = seed(coordinator, 2)
+    pair = worker(coordinator)
+    assert set_claim_limit(coordinator, pair, 12).returncode == 0
+    submission(coordinator, pair)
+    response = claim(coordinator, pair)
+    assert response.status_code == 200
+    assert response.json()["task"] is None
+    assert response.json()["reason"] == "awaiting review"
+    assert coordinator[1]("SELECT state FROM tasks WHERE id=?", [second["task_id"]])[0][0] == "pending"
+
+
 def test_operator_reserve_preserves_visitors_and_existing_leases(coordinator):
     operator, visitor = worker(coordinator), worker(coordinator)
     assert reserve(coordinator, operator, 1).returncode == 0
