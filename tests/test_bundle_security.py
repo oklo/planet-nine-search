@@ -1,5 +1,6 @@
 import io
 import socket
+import ssl
 import zipfile
 
 import numpy as np
@@ -127,3 +128,117 @@ def test_redirect_is_checked_before_contact(tmp_path, monkeypatch):
     with pytest.raises(ValueError):
         network.download("https://oklo.org/file", tmp_path / "file", 10)
     assert contacted == ["oklo.org"]
+
+
+def test_download_retries_read_timeout_then_succeeds(tmp_path, monkeypatch):
+    attempts = []
+    sleeps = []
+
+    class Response:
+        status = 200
+
+        def __init__(self, blocks):
+            self.blocks = iter(blocks)
+
+        def getheader(self, key, default=None):
+            return {"Content-Length": "4"}.get(key, default)
+
+        def read(self, _size):
+            block = next(self.blocks)
+            if isinstance(block, BaseException):
+                raise block
+            return block
+
+    class Connection:
+        def __init__(self, *_args, **_kwargs):
+            self.number = len(attempts)
+            attempts.append(self.number)
+
+        def request(self, *_args, **_kwargs):
+            pass
+
+        def getresponse(self):
+            blocks = [b"ab", TimeoutError("read timed out")]
+            if self.number != 0:
+                blocks = [b"abcd", b""]
+            return Response(blocks)
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(network, "PublicConnection", Connection)
+    monkeypatch.setattr(network.time, "sleep", sleeps.append)
+    destination = tmp_path / "bundle.zip"
+    network.download("https://oklo.org/file", destination, 4)
+    assert destination.read_bytes() == b"abcd"
+    assert len(attempts) == 2
+    assert sleeps == [30]
+
+
+def test_download_timeout_exhaustion_removes_partial_file(tmp_path, monkeypatch):
+    attempts = []
+    sleeps = []
+
+    class Response:
+        status = 200
+
+        def getheader(self, key, default=None):
+            return {"Content-Length": "4"}.get(key, default)
+
+        def read(self, _size):
+            if not hasattr(self, "sent"):
+                self.sent = True
+                return b"ab"
+            raise TimeoutError("read timed out")
+
+    class Connection:
+        def __init__(self, *_args, **_kwargs):
+            attempts.append(None)
+
+        def request(self, *_args, **_kwargs):
+            pass
+
+        def getresponse(self):
+            return Response()
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(network, "PublicConnection", Connection)
+    monkeypatch.setattr(network.time, "sleep", sleeps.append)
+    destination = tmp_path / "bundle.zip"
+    with pytest.raises(TimeoutError, match="read timed out"):
+        network.download("https://oklo.org/file", destination, 4)
+    assert len(attempts) == 3
+    assert sleeps == [30, 30]
+    assert not destination.exists()
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [ssl.SSLCertVerificationError("bad certificate"), ValueError("invalid bundle URL")],
+)
+def test_download_does_not_retry_tls_or_validation_errors(tmp_path, monkeypatch, failure):
+    attempts = []
+
+    class Connection:
+        def __init__(self, *_args, **_kwargs):
+            attempts.append(None)
+
+        def request(self, *_args, **_kwargs):
+            if isinstance(failure, ssl.SSLCertVerificationError):
+                raise failure
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(network, "PublicConnection", Connection)
+    if not isinstance(failure, ssl.SSLCertVerificationError):
+
+        def reject_url(*_args):
+            raise failure
+
+        monkeypatch.setattr(network, "public_url", reject_url)
+    with pytest.raises(type(failure)):
+        network.download("https://oklo.org/file", tmp_path / "bundle.zip", 4)
+    assert len(attempts) == (1 if isinstance(failure, ssl.SSLCertVerificationError) else 0)

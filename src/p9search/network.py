@@ -4,6 +4,7 @@ import http.client
 import ipaddress
 import socket
 import ssl
+import time
 from urllib.parse import urljoin, urlsplit
 
 from . import USER_AGENT
@@ -53,44 +54,61 @@ class PublicConnection(http.client.HTTPSConnection):
 
 
 def download(url, destination, expected_bytes, origins=DEFAULT_ORIGINS):
-    for _ in range(4):
-        parsed = public_url(url, origins)
-        connection = PublicConnection(
-            parsed.hostname, timeout=120, context=ssl.create_default_context()
-        )
+    for attempt in range(3):
+        partial = False
         try:
-            path = parsed.path or "/"
-            if parsed.query:
-                path += "?" + parsed.query
-            connection.request(
-                "GET", path, headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"}
-            )
-            response = connection.getresponse()
-            if response.status in (301, 302, 303, 307, 308):
-                location = response.getheader("Location")
-                if not location:
-                    raise ValueError("Redirect lacks a destination")
-                url = urljoin(url, location)
-                public_url(url, origins)
-                continue
-            if (
-                response.status != 200
-                or response.getheader("Content-Encoding", "identity") != "identity"
-            ):
-                raise ValueError(f"Unexpected bundle response: {response.status}")
-            length = response.getheader("Content-Length")
-            if length is not None and int(length) != expected_bytes:
-                raise ValueError("Bundle size differs")
-            count = 0
-            with destination.open("wb") as output:
-                while block := response.read(min(1024 * 1024, expected_bytes + 1 - count)):
-                    count += len(block)
-                    if count > expected_bytes:
-                        raise ValueError("Bundle exceeds declared size")
-                    output.write(block)
-            if count != expected_bytes:
-                raise ValueError("Bundle size differs")
-            return
-        finally:
-            connection.close()
-    raise ValueError("Too many bundle redirects")
+            for _ in range(4):
+                parsed = public_url(url, origins)
+                connection = PublicConnection(
+                    parsed.hostname, timeout=120, context=ssl.create_default_context()
+                )
+                try:
+                    path = parsed.path or "/"
+                    if parsed.query:
+                        path += "?" + parsed.query
+                    connection.request(
+                        "GET",
+                        path,
+                        headers={"User-Agent": USER_AGENT, "Accept-Encoding": "identity"},
+                    )
+                    response = connection.getresponse()
+                    if response.status in (301, 302, 303, 307, 308):
+                        location = response.getheader("Location")
+                        if not location:
+                            raise ValueError("Redirect lacks a destination")
+                        url = urljoin(url, location)
+                        public_url(url, origins)
+                        continue
+                    if (
+                        response.status != 200
+                        or response.getheader("Content-Encoding", "identity") != "identity"
+                    ):
+                        raise ValueError(f"Unexpected bundle response: {response.status}")
+                    length = response.getheader("Content-Length")
+                    if length is not None and int(length) != expected_bytes:
+                        raise ValueError("Bundle size differs")
+                    count = 0
+                    with destination.open("wb") as output:
+                        partial = True
+                        while block := response.read(min(1024 * 1024, expected_bytes + 1 - count)):
+                            count += len(block)
+                            if count > expected_bytes:
+                                raise ValueError("Bundle exceeds declared size")
+                            output.write(block)
+                    if count != expected_bytes:
+                        raise ValueError("Bundle size differs")
+                    partial = False
+                    return
+                finally:
+                    connection.close()
+            raise ValueError("Too many bundle redirects")
+        except TimeoutError:
+            if partial:
+                destination.unlink(missing_ok=True)
+            if attempt == 2:
+                raise
+            time.sleep(30)
+        except BaseException:
+            if partial:
+                destination.unlink(missing_ok=True)
+            raise
