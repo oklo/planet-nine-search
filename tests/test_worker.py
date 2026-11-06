@@ -162,3 +162,144 @@ def test_one_worker_identity_cannot_run_in_two_work_directories(tmp_path):
         with pytest.raises(RuntimeError, match="Another process"):
             worker.work(args, DiskBudget(args.directory, 2**30, 0))
     assert not credentials.exists()
+
+
+def test_continuous_worker_reuses_space_across_download_search_submission_cycles(
+    tmp_path, monkeypatch
+):
+    import hashlib
+
+    from p9search.cli import parser
+    from p9search.storage import canonical
+
+    from .test_retention import completed_job
+
+    count = 20
+    claimed = []
+    submitted = []
+    waits = []
+    transient_claim = False
+    transient_submit = False
+    completed_child = None
+
+    class Coordinator:
+        def __init__(self, *args):
+            self.credentials = {}
+
+        def register(self, name):
+            self.credentials["worker_id"] = "test-worker"
+
+        def save(self):
+            pass
+
+        def clear_claim(self):
+            self.credentials.pop("task_id", None)
+            self.credentials.pop("lease_token", None)
+
+        def lease_body(self, **extra):
+            return extra
+
+        def request(self, action, body):
+            nonlocal transient_claim, transient_submit
+            if action == "claim":
+                if len(submitted) == count:
+                    return {"task": None, "retry_after": 300}
+                if len(submitted) == 3 and not transient_claim:
+                    transient_claim = True
+                    raise requests.Timeout("temporary claim interruption")
+                spec = specification(label=f"field {len(submitted)}")
+                claimed.append(spec["task_id"])
+                return {
+                    "task": spec,
+                    "task_id": spec["task_id"],
+                    "lease_seconds": 1800,
+                    "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
+                }
+            assert action == "submit"
+            if len(submitted) == 5 and not transient_submit:
+                transient_submit = True
+                raise requests.Timeout("lost acknowledgement")
+            submitted.append(body["result"]["task_id"])
+            return {"accepted": True, "verified": False}
+
+    class Child:
+        returncode = 0
+
+        def __init__(self, *args, **kwargs):
+            nonlocal completed_child
+            completed_child = completed_job(
+                tmp_path, len(submitted), acknowledged=False, payload=50000
+            )
+
+        def poll(self):
+            return 0
+
+    def sleep(seconds):
+        waits.append(seconds)
+        if len(submitted) == count:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(worker, "Client", Coordinator)
+    monkeypatch.setattr(worker.subprocess, "Popen", Child)
+    monkeypatch.setattr(worker.time, "sleep", sleep)
+    args = parser().parse_args(
+        [
+            "worker",
+            "--continuous",
+            "--directory",
+            str(tmp_path),
+            "--keep-results",
+            "3",
+            "--reserve-gb",
+            "0",
+        ]
+    )
+    budget = DiskBudget(tmp_path, 2**30, 0)
+    with pytest.raises(KeyboardInterrupt):
+        worker.work(args, budget)
+    assert len(claimed) == len(submitted) == count
+    assert len(set(submitted)) == count
+    assert not list(tmp_path.rglob("*.npy"))
+    assert len(list(tmp_path.glob("*/submission.json"))) == 3
+    assert completed_child.exists()
+    assert budget.used() < 60000
+    assert waits == [60, 60, 300]
+
+
+def test_continuous_capacity_pause_recovers_without_registering_another_worker(
+    tmp_path, monkeypatch
+):
+    from p9search.cli import parser
+    from p9search.storage import DiskCapacityError
+
+    calls = []
+    checks = 0
+
+    class Coordinator:
+        def __init__(self, *args):
+            self.credentials = {}
+
+        def register(self, name):
+            calls.append("register")
+
+        def save(self):
+            pass
+
+        def request(self, action, body):
+            calls.append(action)
+            raise KeyboardInterrupt
+
+    def check(*args):
+        nonlocal checks
+        checks += 1
+        if checks == 1:
+            raise DiskCapacityError("temporary low free space")
+
+    monkeypatch.setattr(worker, "Client", Coordinator)
+    monkeypatch.setattr(worker.time, "sleep", lambda seconds: calls.append(seconds))
+    budget = DiskBudget(tmp_path, 2**30, 0)
+    monkeypatch.setattr(budget, "check", check)
+    args = parser().parse_args(["worker", "--continuous", "--directory", str(tmp_path)])
+    with pytest.raises(KeyboardInterrupt):
+        worker.work(args, budget)
+    assert calls == ["register", 300, "claim"]

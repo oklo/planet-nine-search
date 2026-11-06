@@ -10,6 +10,10 @@ from pathlib import Path
 GIB = 2**30
 
 
+class DiskCapacityError(RuntimeError):
+    """The work allocation or volume reserve currently leaves insufficient space."""
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
 
@@ -70,9 +74,9 @@ class DiskBudget:
 
     def check(self, additional=0):
         if additional < 0 or self.used() + additional > self.maximum:
-            raise RuntimeError("Worker disk allocation exhausted")
+            raise DiskCapacityError("Worker disk allocation exhausted")
         if shutil.disk_usage(self.directory).free - additional < self.reserve:
-            raise RuntimeError("Free-space reserve reached")
+            raise DiskCapacityError("Free-space reserve reached")
 
 
 class DirectoryLock:

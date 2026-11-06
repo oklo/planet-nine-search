@@ -11,12 +11,14 @@ cd planet-nine-search
 python -m venv .venv
 source .venv/bin/activate
 pip install .
-p9 worker --directory ./work --max-disk-gb 12 --reserve-gb 20
+p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
 Workers need operator approval at [oklo.org](https://oklo.org/planet-nine/).
-Each worker claims one field and retains its evidence locally. Results await a
-full replay on the trusted master before acceptance. Use `p9 status` for queue
+Each worker searches one field at a time. Acknowledged submissions release their
+downloaded pixels; up to 32 recent compact results are retained locally.
+Use `--keep-data` to retain pixels for inspection. Results await a full replay
+on the trusted master before acceptance. Use `p9 status` for queue
 counts and `p9 --help` for local runs and review. Defaults limit each search to
 24 GiB resident memory and four hours; disk and memory limits are adjustable.
 For images on a shared drive, keep the token on a private disk with

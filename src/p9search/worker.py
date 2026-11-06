@@ -11,8 +11,24 @@ from pathlib import Path
 import requests
 
 from .client import Client, CoordinatorError
-from .storage import DirectoryLock, canonical, read_json, write_json
+from .retention import maintain
+from .storage import DirectoryLock, DiskCapacityError, canonical, read_json, write_json
 from .tasks import PROTOCOL, validate_task
+
+
+def transient(error):
+    return not isinstance(error, CoordinatorError) or error.status >= 500 or error.status == 429
+
+
+def retry_request(operation, continuous):
+    while True:
+        try:
+            return operation()
+        except (requests.RequestException, CoordinatorError) as error:
+            if not continuous or not transient(error):
+                raise
+            print("Coordinator temporarily unavailable; retrying in one minute.", flush=True)
+            time.sleep(60)
 
 
 def stop_child(child):
@@ -51,34 +67,52 @@ def work(args, budget):
 def _work(args, budget, credentials):
     root = Path(args.directory).resolve()
     client = Client(args.coordinator, credentials)
-    client.register(args.name)
+    retry_request(lambda: client.register(args.name), args.continuous)
     # If the previous response was lost, repeat the identical submission first.
     if "task_id" in client.credentials:
         old = root / client.credentials["task_id"]
         if (old / "result.json").exists():
             try:
-                submit(client, old)
+                retry_request(lambda: submit(client, old), args.continuous)
             except CoordinatorError as error:
                 if error.status != 409:
                     raise
                 client.clear_claim()
     while True:
-        budget.check()
-        if budget.available() < 128 * 2**20:
-            raise RuntimeError(
-                "No disk allocation remains; retain results or choose another work directory"
-            )
+        maintain(
+            root,
+            keep_results=getattr(args, "keep_results", 32),
+            keep_data=getattr(args, "keep_data", False),
+            active_task=client.credentials.get("task_id"),
+        )
+        try:
+            budget.check()
+            if budget.available() < 128 * 2**20:
+                raise DiskCapacityError("Insufficient space for another field")
+        except DiskCapacityError:
+            if not args.continuous:
+                raise
+            print("Waiting for disk space; retrying in five minutes.", flush=True)
+            time.sleep(300)
+            continue
         if "lease_token" not in client.credentials:
             client.credentials["lease_token"] = secrets.token_hex(32)
             client.save()
-        claim = client.request(
-            "claim",
-            {
-                "protocol": PROTOCOL,
-                "available_bytes": budget.available(),
-                "lease_token": client.credentials["lease_token"],
-            },
-        )
+        try:
+            claim = client.request(
+                "claim",
+                {
+                    "protocol": PROTOCOL,
+                    "available_bytes": budget.available(),
+                    "lease_token": client.credentials["lease_token"],
+                },
+            )
+        except (requests.RequestException, CoordinatorError) as error:
+            if not args.continuous or not transient(error):
+                raise
+            print("Coordinator temporarily unavailable; retrying in one minute.", flush=True)
+            time.sleep(60)
+            continue
         if claim["task"] is None:
             print(
                 claim.get("reason", "No eligible field is available for this disk allocation."),
@@ -86,7 +120,7 @@ def _work(args, budget, credentials):
             )
             if not args.continuous:
                 return
-            time.sleep(min(60, claim.get("retry_after", 60)))
+            time.sleep(max(1, min(300, claim.get("retry_after", 60))))
             continue
         spec = validate_task(claim["task"])
         if claim["task_id"] != spec["task_id"]:
@@ -177,6 +211,11 @@ def _work(args, budget, credentials):
             raise
         # Keep the claim and exact result if acknowledgement is lost; next run
         # retries submission before claiming anything else.
-        submit(client, folder)
+        retry_request(lambda: submit(client, folder), args.continuous)
+        maintain(
+            root,
+            keep_results=getattr(args, "keep_results", 32),
+            keep_data=getattr(args, "keep_data", False),
+        )
         if not args.continuous:
             return

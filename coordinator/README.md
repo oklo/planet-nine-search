@@ -45,6 +45,7 @@ that many pending tasks for other workers. All state changes have an audit trail
 `results` exports one bounded submission per line. Save the relevant line as
 `submission.json`. On the trusted master, review it against the **operator's**
 task file, with a fresh directory. Remote files never enter the replay cache.
+Use the same package release as the worker being reviewed.
 
 ```sh
 php admin.php results

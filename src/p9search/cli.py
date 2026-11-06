@@ -32,7 +32,16 @@ def parser():
     worker.add_argument(
         "--continuous",
         action="store_true",
-        help="keep claiming work until interrupted or the disk budget is exhausted",
+        help="keep searching; wait through queue, review and capacity pauses",
+    )
+    worker.add_argument(
+        "--keep-data", action="store_true", help="retain downloaded pixels for local inspection"
+    )
+    worker.add_argument(
+        "--keep-results",
+        type=int,
+        default=32,
+        help="maximum recent compact results to retain (also limited to 256 MiB)",
     )
     local = commands.add_parser("run", help="search a downloaded field specification locally")
     local.add_argument("task", type=Path)
@@ -77,13 +86,15 @@ def main(argv=None):
             review(args)
             return 0
         budget = DiskBudget(args.directory, int(args.max_disk_gb * GIB), int(args.reserve_gb * GIB))
-        budget.check()
         if args.command == "worker":
             from .worker import work
 
+            if args.keep_results < 1:
+                raise ValueError("Keep at least one compact result")
             with DirectoryLock(args.directory, "worker.lock"):
                 work(args, budget)
             return 0
+        budget.check()
         for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
             os.environ[name] = str(args.threads)
         from . import runtime
