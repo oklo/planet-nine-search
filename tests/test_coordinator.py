@@ -327,8 +327,10 @@ def worker_id_for(service, pair):
 def record_claims(service, pair, count):
     worker_id = worker_id_for(service, pair)
     for _ in range(count):
-        service[1]("INSERT INTO events(time,action,worker_id,task_id,detail) VALUES(?,?,?,?,?)",
-                   [int(time.time()), "claim", worker_id, None, "test quota history"])
+        service[1](
+            "INSERT INTO events(time,action,worker_id,task_id,detail) VALUES(?,?,?,?,?)",
+            [int(time.time()), "claim", worker_id, None, "test quota history"],
+        )
     return worker_id
 
 
@@ -340,7 +342,9 @@ def test_default_daily_claim_limit_is_eight(coordinator):
     assert response.status_code == 200
     assert response.json()["reason"] == "daily claim limit"
     assert response.json()["limit"] == 8
-    assert coordinator[1]("SELECT state FROM tasks WHERE id=?", [task["task_id"]])[0][0] == "pending"
+    assert (
+        coordinator[1]("SELECT state FROM tasks WHERE id=?", [task["task_id"]])[0][0] == "pending"
+    )
 
 
 def test_configured_higher_quota_applies_to_only_selected_worker(coordinator):
@@ -353,9 +357,17 @@ def test_configured_higher_quota_applies_to_only_selected_worker(coordinator):
     response = claim(coordinator, selected)
     assert response.json()["task"] is not None
     assert claim(coordinator, default).json() == {
-        "task": None, "retry_after": 300, "reason": "daily claim limit", "limit": 8
+        "task": None,
+        "retry_after": 300,
+        "reason": "daily claim limit",
+        "limit": 8,
     }
-    assert coordinator[1]("SELECT detail FROM events WHERE worker_id=? AND action='claim-limit'", [selected_id])[0][0] == "12"
+    assert (
+        coordinator[1](
+            "SELECT detail FROM events WHERE worker_id=? AND action='claim-limit'", [selected_id]
+        )[0][0]
+        == "12"
+    )
 
 
 def test_claim_limit_rejects_values_outside_one_to_ninety_six(coordinator):
@@ -364,7 +376,12 @@ def test_claim_limit_rejects_values_outside_one_to_ninety_six(coordinator):
     assert set_claim_limit(coordinator, pair, 97).returncode != 0
     assert set_claim_limit(coordinator, pair, "not-a-number").returncode != 0
     worker_id = worker_id_for(coordinator, pair)
-    assert coordinator[1]("SELECT COUNT(*) FROM settings WHERE key=?", ["claim_limit:" + worker_id])[0][0] == 0
+    assert (
+        coordinator[1]("SELECT COUNT(*) FROM settings WHERE key=?", ["claim_limit:" + worker_id])[
+            0
+        ][0]
+        == 0
+    )
 
 
 def test_higher_daily_limit_does_not_bypass_pending_review(coordinator):
@@ -377,7 +394,9 @@ def test_higher_daily_limit_does_not_bypass_pending_review(coordinator):
     assert response.status_code == 200
     assert response.json()["task"] is None
     assert response.json()["reason"] == "awaiting review"
-    assert coordinator[1]("SELECT state FROM tasks WHERE id=?", [second["task_id"]])[0][0] == "pending"
+    assert (
+        coordinator[1]("SELECT state FROM tasks WHERE id=?", [second["task_id"]])[0][0] == "pending"
+    )
 
 
 def test_operator_reserve_preserves_visitors_and_existing_leases(coordinator):
