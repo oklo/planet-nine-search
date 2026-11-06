@@ -1,4 +1,4 @@
-"""Quarantine remote reports and attest only a fresh, trusted full replay."""
+"""Apply a master-issued review plan and attest the checks actually performed."""
 
 import base64
 import hashlib
@@ -12,6 +12,7 @@ from pathlib import Path
 from .provenance import execution_manifest, source_hash
 from .storage import bounded_json, canonical, load_bounded, read_json, sha256, write_json
 from .tasks import validate_task
+from .validation import check_local_run, check_report, require
 from .worker import stop_child
 
 
@@ -71,45 +72,150 @@ def signed_receipt(payload, key):
     }
 
 
+def verify_signed(document, key):
+    payload = base64.b64decode(document["payload"], validate=True)
+    require(
+        hmac.compare_digest(
+            hmac.new(key, payload, hashlib.sha256).hexdigest(), document["signature"]
+        ),
+        "Untrusted review plan signature",
+    )
+    return bounded_json(payload.decode())
+
+
 def review(args):
     spec = validate_task(load_bounded(args.task))
     submission = load_bounded(args.submission)
-    if set(submission) != {"task_id", "worker_id", "submission_digest", "result_json"}:
-        raise ValueError("Expected one exported coordinator submission")
+    require(
+        set(submission) == {"task_id", "worker_id", "submission_digest", "result_json"},
+        "Expected one exported coordinator submission",
+    )
     raw = submission["result_json"]
-    if (
-        not isinstance(raw, str)
-        or hashlib.sha256(raw.encode()).hexdigest() != submission["submission_digest"]
-    ):
-        raise ValueError("Submission digest differs")
+    require(
+        isinstance(raw, str)
+        and hashlib.sha256(raw.encode()).hexdigest() == submission["submission_digest"],
+        "Submission digest differs",
+    )
     remote = bounded_json(raw)
-    spec_hash = hashlib.sha256(canonical(spec).encode()).hexdigest()
-    if (
-        submission["task_id"] != spec["task_id"]
-        or remote.get("task_id") != spec["task_id"]
-        or remote.get("spec_sha256") != spec_hash
-    ):
-        raise ValueError("Submission belongs to a different trusted task")
+    binding = {
+        "task_id": spec["task_id"],
+        "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
+        "submission_digest": submission["submission_digest"],
+        "worker_id": submission["worker_id"],
+    }
+    require(
+        submission["task_id"] == spec["task_id"]
+        and remote.get("task_id") == spec["task_id"]
+        and remote.get("spec_sha256") == binding["spec_sha256"],
+        "Submission belongs to a different trusted task",
+    )
     keypath = Path(args.key)
-    if keypath.stat().st_mode & 0o077:
-        raise ValueError("Review key must be private (chmod 600)")
+    require(not keypath.stat().st_mode & 0o077, "Review key must be private (chmod 600)")
     key = bytes.fromhex(keypath.read_text().strip())
-    if len(key) != 32:
-        raise ValueError("Expected a 32-byte hexadecimal review key")
+    require(len(key) == 32, "Expected a 32-byte hexadecimal review key")
+    plan_path = getattr(args, "plan", None)
+    plan_document, plan = None, None
+    method, issue = "full_replay", None
+    if plan_path:
+        plan_document = load_bounded(plan_path)
+        plan = verify_signed(plan_document, key)
+        require(
+            plan.get("contract") == "review-plan-v1"
+            and all(plan.get(k) == v for k, v in binding.items())
+            and plan.get("source_sha256") == remote.get("source_sha256")
+            and plan.get("mode") in ("full_replay", "trusted_local", "statistical"),
+            "Review plan does not bind this submission",
+        )
+        method = plan["mode"]
+        approved = getattr(args, "approved_source", None) or [source_hash()]
+        require(remote.get("source_sha256") in approved, "Unapproved scientific release")
+        try:
+            check_report(spec, remote, approved)
+        except (ValueError, KeyError, TypeError) as error:
+            method, issue = "full_replay", str(error)
+        if (
+            remote.get("state") == "needs_followup"
+            or remote.get("candidates")
+            or remote.get("candidate_count", 0)
+        ):
+            method = "full_replay"
     root = Path(args.directory).absolute()
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
-    # Remote data is never placed in the replay's geometry, source, or cache.
     write_json(root / "quarantine" / "submission.json", submission, private=True)
-    task = root / "task.json"
-    write_json(task, spec)
+    write_json(root / "task.json", spec)
     launch = execution_manifest()
     write_json(root / "review-launch.json", launch, private=True)
+    if plan_document:
+        write_json(root / "plan.json", plan_document, private=True)
+    checks = ["task and release identity", "bounded report and numerical consistency"]
+    result = remote
+    if method == "full_replay":
+        require(
+            remote.get("source_sha256") == source_hash(),
+            "Full replay requires the submitted scientific release",
+        )
+        result = replay(args, root, spec)
+        checks = [
+            "archive reacquired",
+            "full blind search and controls",
+            "native candidate photometry",
+            "launch and completion source identity",
+        ]
+        if result["state"] == "searched" and spec["injections"]:
+            checks.append("declared native-injection response tests and admitted blind searches")
+        if result["state"] == "quality_rejected":
+            checks = [
+                "archive reacquired for screened sectors",
+                "foreground quality rejection",
+                "launch and completion source identity",
+            ]
+    elif method == "trusted_local":
+        local_run = getattr(args, "local_run", None)
+        require(local_run is not None, "Trusted-local review requires an operator-selected run")
+        check_local_run(local_run, spec, remote)
+        checks.append("operator-selected local artifacts and archive provenance")
+    require(source_hash() == launch["source_sha256"], "Review source changed during execution")
+    accepted = issue is None and (method != "full_replay" or outcomes_agree(remote, result))
+    write_json(root / "reviewed-result.json", result)
+    payload = {
+        **binding,
+        "contract": "statistical-review-v1" if plan else "trusted-full-replay-v1",
+        "disposition": "accepted" if accepted else "disagrees",
+        "execution": launch,
+        "policy": spec["policy"],
+        "checks": checks,
+        "replay_state": result["state"],
+        "sensitivity_credit": 0,
+    }
+    if plan:
+        payload.update(
+            plan_signature=plan_document["signature"],
+            review_method=method,
+            audit_probability=plan["audit_probability"],
+            audit_reason=plan["reason"],
+            consistency_failure=issue,
+            result_sha256=sha256(root / "reviewed-result.json"),
+            reported_inputs=result["inputs"],
+            full_replay_verified=method == "full_replay" and accepted,
+            replay_seconds=result["elapsed_seconds"] if method == "full_replay" else 0,
+        )
+    else:
+        payload.update(
+            replay_result_sha256=sha256(root / "replay" / spec["task_id"] / "result.json"),
+            trusted_inputs=result["inputs"],
+            replay_seconds=result["elapsed_seconds"],
+        )
+    write_json(root / "receipt.json", signed_receipt(payload, key), private=True)
+    print(f"Review {method}: {payload['disposition']}: {root / 'receipt.json'}")
+
+
+def replay(args, root, spec):
     command = [
         sys.executable,
         "-m",
         "p9search",
         "run",
-        str(task),
+        str(root / "task.json"),
         "--directory",
         str(root / "replay"),
         "--max-disk-gb",
@@ -135,49 +241,10 @@ def review(args):
             code = child.wait(timeout=args.max_hours * 3600 + 30)
         finally:
             stop_child(child)
-    if code != 0:
-        raise RuntimeError("Trusted replay failed; no acceptance record created")
-    result_path = root / "replay" / spec["task_id"] / "result.json"
-    replay = read_json(result_path)
-    if not (
-        source_hash()
-        == launch["source_sha256"]
-        == replay["source_sha256"]
-        == replay["launch"]["source_sha256"]
-    ):
-        raise RuntimeError("Replay source identity changed")
-    disposition = "accepted" if outcomes_agree(remote, replay) else "disagrees"
-    payload = {
-        "contract": "trusted-full-replay-v1",
-        "task_id": spec["task_id"],
-        "spec_sha256": spec_hash,
-        "submission_digest": submission["submission_digest"],
-        "worker_id": submission["worker_id"],
-        "disposition": disposition,
-        "replay_result_sha256": sha256(result_path),
-        "trusted_inputs": replay["inputs"],
-        "execution": launch,
-        "policy": spec["policy"],
-        "checks": [
-            "archive reacquired",
-            "full blind search and controls",
-            "native candidate photometry",
-            "launch and completion source identity",
-        ],
-        "replay_state": replay["state"],
-        "replay_seconds": replay["elapsed_seconds"],
-        "sensitivity_credit": 0,
-    }
-    if replay["state"] == "searched" and spec["injections"]:
-        payload["checks"].append(
-            "declared native-injection response tests and admitted blind searches"
-        )
-    # Record the checks actually reached by an early baseline rejection.
-    if replay["state"] == "quality_rejected":
-        payload["checks"] = [
-            "archive reacquired for screened sectors",
-            "foreground quality rejection",
-            "launch and completion source identity",
-        ]
-    write_json(root / "receipt.json", signed_receipt(payload, key), private=True)
-    print(f"Trusted replay {disposition}: {root / 'receipt.json'}")
+    require(code == 0, "Trusted replay failed; no acceptance record created")
+    result = read_json(root / "replay" / spec["task_id"] / "result.json")
+    require(
+        source_hash() == result["source_sha256"] == result["launch"]["source_sha256"],
+        "Replay source identity changed",
+    )
+    return result

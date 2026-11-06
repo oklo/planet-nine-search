@@ -46,11 +46,20 @@ def parser():
     local = commands.add_parser("run", help="search a downloaded field specification locally")
     local.add_argument("task", type=Path)
     reviewer = commands.add_parser(
-        "review", help="fully replay an exported submission on the trusted master"
+        "review", help="validate a submission using an operator-issued audit plan"
     )
     reviewer.add_argument("task", type=Path)
     reviewer.add_argument("submission", type=Path)
     reviewer.add_argument("--key", type=Path, required=True)
+    reviewer.add_argument("--plan", type=Path, help="signed plan from admin.php review-plan")
+    reviewer.add_argument(
+        "--local-run", type=Path, help="operator-selected trusted local result directory"
+    )
+    reviewer.add_argument(
+        "--approved-source",
+        action="append",
+        help="approved source hash (default: installed release)",
+    )
     for command in (worker, local, reviewer):
         command.add_argument("--directory", type=Path, default=Path("work"))
         command.add_argument(

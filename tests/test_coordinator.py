@@ -552,6 +552,149 @@ def test_only_master_signed_current_replay_can_accept(coordinator):
     assert coordinator[2]("accept", receipt).returncode != 0
 
 
+def adaptive_submission(service, pair, number, *, source="a" * 64, candidate=False):
+    seed(service, number)
+    claimed = claim(service, pair).json()
+    report = {
+        **claimed["task"],
+        "spec_sha256": claimed["spec_sha256"],
+        "state": "needs_followup" if candidate else "searched",
+        "candidate_count": int(candidate),
+        "source_sha256": source,
+        "device": "cpu",
+        "dependencies": {"numpy": "2"},
+        "launch": {"source_sha256": source, "platform": "test", "python": "3.12"},
+    }
+    response = call(
+        service,
+        "submit",
+        {"task_id": report["task_id"], "lease_token": pair[1], "result": report},
+        pair[0],
+    )
+    assert response.status_code == 200, response.text
+    keypath = service[3] / "review.key"
+    if not keypath.exists():
+        keypath.write_text(secrets.token_hex(32))
+        keypath.chmod(0o600)
+    decision = service[2]("review-plan", report["task_id"])
+    assert decision.returncode == 0, decision.stderr
+    from p9search.review import verify_signed
+
+    signed = json.loads(decision.stdout)
+    plan = verify_signed(signed, bytes.fromhex(keypath.read_text()))
+    return signed, plan
+
+
+def adaptive_receipt(service, signed, plan, *, method=None, disposition="accepted"):
+    from p9search.review import signed_receipt
+    from p9search.storage import write_json
+
+    method = method or plan["mode"]
+    payload = {k: plan[k] for k in ("task_id", "worker_id", "spec_sha256", "submission_digest")}
+    payload.update(
+        contract="statistical-review-v1",
+        disposition=disposition,
+        review_method=method,
+        plan_signature=signed["signature"],
+        audit_probability=0.1,
+        sensitivity_credit=0,
+        full_replay_verified=method == "full_replay" and disposition == "accepted",
+    )
+    path = service[3] / "adaptive-receipt.json"
+    write_json(
+        path, signed_receipt(payload, bytes.fromhex((service[3] / "review.key").read_text()))
+    )
+    return service[2]("accept", path)
+
+
+def test_probation_is_three_audits_per_build_and_plan_cannot_be_rerolled(coordinator):
+    pair = worker(coordinator)
+    for n in range(1, 4):
+        signed, plan = adaptive_submission(coordinator, pair, n)
+        assert plan["mode"] == "full_replay" and plan["reason"] == "probation"
+        assert plan["passed_audits"] == n - 1
+        assert json.loads(coordinator[2]("review-plan", plan["task_id"]).stdout) == signed
+        assert adaptive_receipt(coordinator, signed, plan, method="statistical").returncode != 0
+        response = adaptive_receipt(coordinator, signed, plan)
+        assert response.returncode == 0, response.stderr
+    signed, plan = adaptive_submission(coordinator, pair, 4)
+    assert plan["passed_audits"] == 3
+    assert plan["mode"] in ("statistical", "full_replay")
+    assert plan["reason"] in ("established_worker", "random_audit")
+    assert adaptive_receipt(coordinator, signed, plan).returncode == 0
+    signed, plan = adaptive_submission(coordinator, pair, 5, source="b" * 64)
+    assert plan["mode"] == "full_replay" and plan["passed_audits"] == 0
+
+
+def test_only_admin_can_grant_local_trust_and_candidate_always_replays(coordinator):
+    pair = worker(coordinator)
+    identity = worker_id_for(coordinator, pair)
+    assert call(coordinator, "trust-local", {"worker_id": identity}, pair[0]).status_code != 200
+    assert coordinator[2]("trust-local", identity, "on").returncode == 0
+    signed, plan = adaptive_submission(coordinator, pair, 1, candidate=True)
+    assert plan["mode"] == "full_replay" and plan["reason"] == "candidate"
+    assert adaptive_receipt(coordinator, signed, plan, method="trusted_local").returncode != 0
+    assert adaptive_receipt(coordinator, signed, plan, disposition="disagrees").returncode == 0
+    assert coordinator[1]("SELECT status FROM workers")[0][0] == "pending"
+    assert (
+        coordinator[1]("SELECT value FROM settings WHERE key=?", ["trusted_local:" + identity])[0][
+            0
+        ]
+        == "0"
+    )
+
+
+def test_receipt_cannot_bind_another_plan_and_rotation_removes_local_trust(coordinator):
+    pair = worker(coordinator)
+    identity = worker_id_for(coordinator, pair)
+    assert coordinator[2]("trust-local", identity, "on").returncode == 0
+    signed, plan = adaptive_submission(coordinator, pair, 1)
+    changed = {**signed, "signature": "0" * 64}
+    assert adaptive_receipt(coordinator, changed, plan).returncode != 0
+    token = coordinator[3] / "new-token"
+    token.write_text(secrets.token_hex(32))
+    assert coordinator[2]("rotate", identity, token).returncode == 0
+    assert (
+        coordinator[1]("SELECT value FROM settings WHERE key=?", ["trusted_local:" + identity])[0][
+            0
+        ]
+        == "0"
+    )
+
+
+def test_failed_audit_holds_unchecked_history_but_preserves_full_replays(coordinator):
+    from p9search.review import signed_receipt
+    from p9search.storage import canonical
+
+    pair = worker(coordinator)
+    signed, plan = adaptive_submission(coordinator, pair, 1)
+    key = bytes.fromhex((coordinator[3] / "review.key").read_text())
+    for number, method in [(100, "statistical"), (101, "full_replay")]:
+        task = seed(coordinator, number)
+        coordinator[1]("UPDATE tasks SET state='reviewed' WHERE id=?", [task["task_id"]])
+        receipt = signed_receipt(
+            {"contract": "statistical-review-v1", "review_method": method}, key
+        )
+        coordinator[1](
+            "INSERT INTO results(task_id,worker_id,submitted,digest,result,status,verified,receipt) VALUES(?,?,0,'old','{}','accepted',1,?)",
+            [task["task_id"], plan["worker_id"], canonical(receipt)],
+        )
+        identity = coordinator[1]("SELECT id FROM results WHERE task_id=?", [task["task_id"]])[0][0]
+        coordinator[1](
+            "INSERT INTO settings VALUES(?,?)", [f"review_plan:{identity}", canonical(signed)]
+        )
+    assert adaptive_receipt(coordinator, signed, plan, disposition="disagrees").returncode == 0
+    assert coordinator[1]("SELECT status,verified FROM results WHERE task_id=?", [f"{100:064x}"])[
+        0
+    ] == ("audit_hold", 0)
+    assert coordinator[1]("SELECT status,verified FROM results WHERE task_id=?", [f"{101:064x}"])[
+        0
+    ] == ("accepted", 1)
+    assert (
+        coordinator[1]("SELECT state FROM tasks WHERE id=?", [f"{100:064x}"])[0][0] == "audit_hold"
+    )
+
+
 def test_backup_is_consistent_with_active_wal(coordinator):
     import sqlite3
 

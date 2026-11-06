@@ -18,7 +18,7 @@ function dispatch(PDO $db, string $action, array $body): array
             )->fetchAll(PDO::FETCH_KEY_PAIR),
             "expired_leases" => 0,
             "registration" => "operator approval required",
-            "result_policy" => "Uncredited until trusted full replay.",
+            "result_policy" => "Master acceptance required: local checks or statistical audits; candidates receive full replay.",
         ];
     }
     if ($action === "register") {

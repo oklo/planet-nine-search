@@ -6,6 +6,7 @@ if (PHP_SAPI !== "cli") {
 }
 require __DIR__ . "/common.php";
 require __DIR__ . "/task.php";
+require __DIR__ . "/review.php";
 umask(0077);
 $action = $argv[1] ?? "";
 $result_schema = "CREATE TABLE results(id INTEGER PRIMARY KEY,task_id TEXT NOT NULL REFERENCES tasks(id),worker_id TEXT NOT NULL REFERENCES workers(id),submitted INTEGER NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',verified INTEGER NOT NULL DEFAULT 0,receipt TEXT);
@@ -106,7 +107,18 @@ if ($action === "init") {
 } else {
     $db = database();
     transaction($db, function () use ($db, $action, $argv) {
-        if ($action === "add") {
+        if ($action === "review-plan") {
+            echo review_plan($db, $argv[2] ?? ""), "\n";
+        } elseif ($action === "trust-local") {
+            $id = $argv[2] ?? "";
+            $enabled = $argv[3] ?? "";
+            if (!in_array($enabled, ["on", "off"], true) || !query($db, "SELECT id FROM workers WHERE id=? AND status='approved'", [$id])->fetchColumn()) {
+                throw new RuntimeException("Approved worker and on|off required");
+            }
+            setting($db, "trusted_local:" . $id, $enabled === "on" ? "1" : "0");
+            event($db, "trust-local", $id, null, $enabled);
+            echo "Updated local trust\n";
+        } elseif ($action === "add") {
             $path = $argv[2] ?? "";
             if (!is_file($path) || filesize($path) > 1000000) {
                 throw new RuntimeException("Invalid task file");
@@ -163,6 +175,8 @@ if ($action === "init") {
                 $audit_detail = (string) $count;
             } else {
                 if ($action !== "approve") {
+                    setting($db, "trusted_local:" . $id, "0");
+                    query($db, "DELETE FROM settings WHERE key LIKE ?", ["audits:" . $id . ":%"]);
                     foreach (
                         query(
                             $db,
@@ -283,7 +297,7 @@ if ($action === "init") {
                 !$job ||
                 !$result ||
                 $job["expires"] <= time() ||
-                ($r["contract"] ?? "") !== "trusted-full-replay-v1" ||
+
                 ($r["spec_sha256"] ?? "") !== hash("sha256", $job["spec"]) ||
                 ($r["submission_digest"] ?? "") !== $result["digest"] ||
                 ($r["worker_id"] ?? "") !== $result["worker_id"] ||
@@ -297,6 +311,7 @@ if ($action === "init") {
                     "Review does not bind a current submission",
                 );
             }
+            $plan = check_review_plan($db, $result, $r);
             $accepted = $r["disposition"] === "accepted";
             query(
                 $db,
@@ -315,11 +330,12 @@ if ($action === "init") {
                     [$job["id"]],
                 );
             } else {
-                requeue($db, $job["id"], "Trusted replay disagrees");
+                requeue($db, $job["id"], "Review disagrees");
                 query($db, "UPDATE workers SET status='pending' WHERE id=?", [
                     $result["worker_id"],
                 ]);
             }
+            record_audit($db, $result, $r, $plan);
             event(
                 $db,
                 "review",
@@ -327,10 +343,10 @@ if ($action === "init") {
                 $job["id"],
                 $r["disposition"],
             );
-            echo "Recorded trusted review; no automatic sensitivity credit\n";
+            echo "Recorded review; no automatic sensitivity credit\n";
         } else {
             throw new RuntimeException(
-                "Usage: admin.php init|migrate|add|workers|approve|revoke|rotate|reserve|claim-limit|requeue|expire|results|accept|backup|restore",
+                "Usage: admin.php init|migrate|add|workers|approve|revoke|rotate|reserve|claim-limit|requeue|expire|results|review-plan|trust-local|accept|backup|restore",
             );
         }
     });

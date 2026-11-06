@@ -12,7 +12,7 @@ const STATES = {
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
   recoverable: 'A projection from two benchmark fields, assuming comparable fields remain to search and a 20% chance that planet nine exists. The full searchable sky has not yet been calibrated.',
-  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists.',
+  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists. Results use trusted local checks or statistical volunteer audits; field details identify the review method.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
   fields: 'All fields shown here, including completed searches, queued fields, and fields stopped by quality checks. Overlapping sector footprints can belong to the same field.',
@@ -391,7 +391,13 @@ async function updateQueue() {
     const count = name => Number.isInteger(Number(status.tasks[name] ?? 0)) && Number(status.tasks[name] ?? 0) >= 0 ? Number(status.tasks[name] ?? 0) : 0;
     const expired = Math.min(count('leased'), Math.max(0, Number(status.expired_leases) || 0));
     $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} awaiting verification`;
-    $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. A lease ends at submission while independent verification continues.`;
+    $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. A lease ends at submission while master checks continue.`;
+    if (count('audit_hold')) {
+      $('recovered-expectation').textContent = 'Under review';
+      $('queue-time').textContent = `${count('audit_hold')} previously accepted fields require reassessment after an audit disagreement.`;
+    } else if (data) {
+      $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
+    }
   } catch {
     $('queue-status').textContent = 'Live queue temporarily unavailable';
     $('queue-time').textContent = 'The published map is still available. Queue status will retry automatically.';

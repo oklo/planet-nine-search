@@ -40,31 +40,45 @@ Rotation invalidates leases and keeps the worker's history and claim limits.
 Reapprove after delivering the replacement token privately. `reserve` leaves
 that many pending tasks for other workers. All state changes have an audit trail.
 
-## Trusted review
+## Review
 
-`results` exports one bounded submission per line. Save the relevant line as
-`submission.json`. On the trusted master, review it against the **operator's**
-task file, with a fresh directory. Remote files never enter the replay cache.
-Use the same package release as the worker being reviewed.
+`results` exports submissions. `review-plan TASK_ID` assigns a signed review
+plan after submission: three successful full replays per worker/build/device,
+then a 10% random audit rate. The saved decision is reused on retries. Candidates
+always require full replay. A changed build starts probation again.
 
 ```sh
 php admin.php results
-p9 review field.json submission.json --directory review-001 --key /private/review.key
+P9_REVIEW_KEY=/private/review.key php admin.php review-plan TASK_ID > plan.json
+p9 review field.json submission.json --plan plan.json --directory review-001 --key /private/review.key
 P9_REVIEW_KEY=/private/review.key php admin.php accept review-001/receipt.json
 ```
 
-Generate the shared private key once as 32 random bytes encoded in hexadecimal;
-set its file mode to 0600. The master signs only after a fresh archive acquisition
-and complete search replay, including applicable injections. Candidate omissions,
-altered measurements, or differing outcomes cannot earn acceptance. A failed
-replay creates no receipt. A disagreement requeues the task and suspends approval.
-The receipt binds inputs, code, environment, task, submission, and checks actually
-performed. It adds no sensitivity credit; population accounting remains a separate
-master operation. Include replay cost when estimating volunteer throughput.
+The operator supplies the task and a private 32-byte hexadecimal review key
+(mode 0600). The reviewer checks identity, versions, input manifests, control
+thresholds, and injection arithmetic on every report. Without `--plan`, it runs
+a full replay. Full replay requires the submitted release; `--approved-source`
+can explicitly allow an older release for a lightweight check.
+
+For an operator-controlled machine, `php admin.php trust-local WORKER_ID on`
+allows local verification without probation. Supply `--local-run /path/to/TASK_ID`
+to check its retained artifacts. Local runs also receive 10% random audits.
+Never grant this setting to a volunteer or use a path supplied in a submission.
+Rotation and revocation remove local trust.
+
+Receipts record `full_replay`, `trusted_local`, or `statistical`; only the first
+claims independent replay. A failed audit suspends approval, resets probation,
+and places unchecked results from that worker/build on `audit_hold` for
+reassessment. Update or withdraw their published sensitivity before resuming
+accounting. Checksums detect changed files, not omitted computation. Statistical
+acceptance is a sampling policy, not proof that every trajectory was searched.
+Population accounting remains a separate operation; acceptance adds no credit.
 
 ## Deployment and recovery
 
-For v1, stop claims, make a private backup, deploy v2, then run `migrate`.
+The audit policy uses the existing v2 database; no schema migration is needed.
+Back up before deploying the PHP files together. For v1, stop claims, back up,
+deploy the current coordinator, then run `migrate`.
 Migration is transactional and retains old tasks/results as `legacy`; publish
 new v2 tasks and explicitly reapprove workers. Historical results are unchanged.
 Deploy all PHP files together. Do not run mixed application versions.
