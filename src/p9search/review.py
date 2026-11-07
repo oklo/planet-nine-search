@@ -155,6 +155,8 @@ def review(args):
             "Full replay requires the submitted scientific release",
         )
         result = replay(args, root, spec)
+        if plan:
+            check_report(spec, result, [source_hash()])
         checks = [
             "archive reacquired",
             "full blind search and controls",

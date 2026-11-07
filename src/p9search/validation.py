@@ -62,7 +62,9 @@ def check_report(spec, report, approved_sources):
     artifacts = report.get("artifacts", {})
     require(
         isinstance(artifacts, dict)
-        and {"task.json", "launch.json"} <= artifacts.keys()
+        # Standalone runs read the task outside their output directory. Its
+        # canonical digest is checked above; only workers retain a local copy.
+        and "launch.json" in artifacts
         and all(
             Path(k).name == k and k.endswith(".json") and digest(v) for k, v in artifacts.items()
         ),

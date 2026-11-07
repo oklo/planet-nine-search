@@ -165,12 +165,24 @@ def test_edited_plan_cannot_select_light_review(tmp_path):
 
 
 def test_assigned_audit_replays_and_records_it(tmp_path, monkeypatch):
-    args, _, report, key = setup_review(tmp_path, "full_replay")
+    args, spec, report, key = setup_review(tmp_path, "full_replay")
+    # p9 run reads the task from the review root, outside its artifact directory.
+    report["artifacts"].pop("task.json")
     calls = []
     monkeypatch.setattr(review, "replay", lambda *a: calls.append(True) or report)
     review.review(args)
     r = review.verify_signed(read_json(args.directory / "receipt.json"), key)
     assert calls == [True] and r["full_replay_verified"] is True
+    check_report(spec, read_json(args.directory / "reviewed-result.json"), [source_hash()])
+
+
+def test_invalid_replay_manifest_cannot_receive_an_acceptance_receipt(tmp_path, monkeypatch):
+    args, _, report, _ = setup_review(tmp_path, "full_replay")
+    report["artifacts"].pop("launch.json")
+    monkeypatch.setattr(review, "replay", lambda *a: report)
+    with pytest.raises(ValueError, match="Invalid artifact manifest"):
+        review.review(args)
+    assert not (args.directory / "receipt.json").exists()
 
 
 def test_inconsistent_report_escalates_to_replay_and_cannot_be_accepted(tmp_path, monkeypatch):
@@ -204,6 +216,8 @@ def test_inconsistent_report_escalates_to_replay_and_cannot_be_accepted(tmp_path
         lambda r: r.update(candidate_count=1),
         lambda r: r.update(verified=True),
         lambda r: r["artifacts"].update({"../outside.json": "c" * 64}),
+        lambda r: r["artifacts"].pop("launch.json"),
+        lambda r: r.update(spec_sha256="f" * 64),
     ],
 )
 def test_inconsistent_reports_cannot_pass_cheap_checks(mutate):
