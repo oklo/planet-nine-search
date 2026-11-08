@@ -62,7 +62,8 @@ can explicitly allow an older release for a lightweight check.
 
 For an operator-controlled machine, `php admin.php trust-local WORKER_ID on`
 allows local verification without probation. Supply `--local-run /path/to/TASK_ID`
-to check its retained artifacts. Local runs also receive 10% random audits.
+to check its retained artifacts; run that worker with `--keep-evidence` until
+review finishes. Local runs also receive 10% random audits.
 Never grant this setting to a volunteer or use a path supplied in a submission.
 Rotation and revocation remove local trust.
 
@@ -73,6 +74,12 @@ reassessment. Update or withdraw their published sensitivity before resuming
 accounting. Checksums detect changed files, not omitted computation. Statistical
 acceptance is a sampling policy, not proof that every trajectory was searched.
 Population accounting remains a separate operation; acceptance adds no credit.
+
+Submissions carry compressed diagnostic files and archive provenance inside the
+stored report. Review checks their hashes and limits decompression. Keep the
+original field bundle and reviewed evidence; downloaded pixels can be reacquired
+for follow-up. `p9 restore STORE ARCHIVE --directory restored` reads a compact
+master archive without changing the original accounting.
 
 ## Deployment and recovery
 

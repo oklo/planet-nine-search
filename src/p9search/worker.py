@@ -11,8 +11,9 @@ from pathlib import Path
 import requests
 
 from .client import Client, CoordinatorError
+from .evidence import pack
 from .retention import maintain
-from .storage import DirectoryLock, DiskCapacityError, canonical, read_json, write_json
+from .storage import DirectoryLock, DiskCapacityError, canonical, read_json, sha256, write_json
 from .tasks import PROTOCOL, validate_task
 
 
@@ -50,10 +51,19 @@ def stop_child(child):
 
 def submit(client, job_directory):
     result = read_json(job_directory / "result.json")
+    evidence = pack(job_directory, result)
+    result = {**result, "evidence": evidence}
     reply = client.request("submit", client.lease_body(result=result))
     if reply != {"accepted": True, "verified": False}:
         raise ValueError("Unexpected submission receipt")
-    write_json(job_directory / "submission.json", reply)
+    write_json(
+        job_directory / "submission.json",
+        {
+            **reply,
+            "result_sha256": sha256(job_directory / "result.json"),
+            "evidence_sha256": evidence["sha256"],
+        },
+    )
     client.clear_claim()
     print("Submitted for independent review.", flush=True)
 
@@ -83,6 +93,7 @@ def _work(args, budget, credentials):
             root,
             keep_results=getattr(args, "keep_results", 32),
             keep_data=getattr(args, "keep_data", False),
+            keep_evidence=getattr(args, "keep_evidence", False),
             active_task=client.credentials.get("task_id"),
         )
         try:
@@ -216,6 +227,7 @@ def _work(args, budget, credentials):
             root,
             keep_results=getattr(args, "keep_results", 32),
             keep_data=getattr(args, "keep_data", False),
+            keep_evidence=getattr(args, "keep_evidence", False),
         )
         if not args.continuous:
             return

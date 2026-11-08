@@ -142,6 +142,32 @@ def test_light_review_does_not_download_or_replay(tmp_path, monkeypatch, mode):
     assert "archive reacquired" not in r["checks"]
 
 
+@pytest.mark.parametrize("corrupt", [False, True])
+def test_uploaded_evidence_is_checked_without_changing_scientific_result(
+    tmp_path, monkeypatch, corrupt
+):
+    from p9search.evidence import pack
+
+    args, _, report, key = setup_review(tmp_path, "trusted_local")
+    envelope = pack(args.local_run, report)
+    if corrupt:
+        envelope["sha256"] = "0" * 64
+    submission = read_json(args.submission)
+    submission["result_json"] = canonical({**report, "evidence": envelope})
+    submission["submission_digest"] = hashlib.sha256(submission["result_json"].encode()).hexdigest()
+    write_json(args.submission, submission)
+    plan = review.verify_signed(read_json(args.plan), key)
+    plan["submission_digest"] = submission["submission_digest"]
+    write_json(args.plan, review.signed_receipt(plan, key))
+    calls = []
+    monkeypatch.setattr(review, "replay", lambda *a: calls.append(True) or report)
+    review.review(args)
+    receipt = review.verify_signed(read_json(args.directory / "receipt.json"), key)
+    assert read_json(args.directory / "reviewed-result.json") == report
+    assert receipt["disposition"] == ("disagrees" if corrupt else "accepted")
+    assert bool(calls) == corrupt
+
+
 def test_local_report_requires_real_matching_local_artifacts(tmp_path, monkeypatch):
     args, _, _, _ = setup_review(tmp_path, "trusted_local")
     (args.local_run / "launch.json").write_text("{}")

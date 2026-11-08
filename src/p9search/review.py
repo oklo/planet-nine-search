@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .evidence import unpack
 from .provenance import execution_manifest, source_hash
 from .storage import bounded_json, canonical, load_bounded, read_json, sha256, write_json
 from .tasks import validate_task
@@ -97,6 +98,7 @@ def review(args):
         "Submission digest differs",
     )
     remote = bounded_json(raw)
+    envelope = remote.pop("evidence", None)
     binding = {
         "task_id": spec["task_id"],
         "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
@@ -131,14 +133,18 @@ def review(args):
         require(remote.get("source_sha256") in approved, "Unapproved scientific release")
         try:
             check_report(spec, remote, approved)
+            if envelope is not None:
+                unpack(remote, envelope)
         except (ValueError, KeyError, TypeError) as error:
             method, issue = "full_replay", str(error)
-        if (
-            remote.get("state") == "needs_followup"
-            or remote.get("candidates")
-            or remote.get("candidate_count", 0)
-        ):
-            method = "full_replay"
+    elif envelope is not None:
+        unpack(remote, envelope)
+    if (
+        remote.get("state") == "needs_followup"
+        or remote.get("candidates")
+        or remote.get("candidate_count", 0)
+    ):
+        method = "full_replay"
     root = Path(args.directory).absolute()
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
     write_json(root / "quarantine" / "submission.json", submission, private=True)

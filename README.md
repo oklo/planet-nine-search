@@ -15,9 +15,10 @@ p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
 Workers need operator approval at [oklo.org](https://oklo.org/planet-nine/).
-Each worker searches one field at a time. Acknowledged submissions release their
-downloaded pixels; up to 32 recent compact results are retained locally.
-Use `--keep-data` to retain pixels for inspection. New volunteers receive three
+Each worker searches one field at a time. Submissions include compressed diagnostic
+evidence. After acknowledgement, workers keep only 32 small receipts; images and
+working files are removed. Use `--keep-data` to retain a local run for inspection.
+New volunteers receive three
 full reviews per software/device configuration, then 10% random audits. Trusted
 local runs receive consistency checks and occasional audits. Candidates always
 receive full review. Use `p9 status` for queue counts and `p9 --help` for commands. Defaults limit each search to

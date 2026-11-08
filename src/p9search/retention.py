@@ -1,5 +1,6 @@
 """Release completed pixel caches and bound acknowledged local history."""
 
+import gzip
 import hashlib
 import os
 import re
@@ -157,8 +158,12 @@ def release_pixels(directory, spec=None):
 def compact(directory):
     """The coordinator has the report; its trusted replay reacquires the images."""
     directory = Path(directory)
-    if load_bounded(directory / "submission.json") != RECEIPT:
+    receipt = load_bounded(directory / "submission.json")
+    if receipt.get("accepted") is not True or receipt.get("verified") is not False:
         raise ValueError("No matching submission acknowledgement")
+    from .evidence import acknowledged
+
+    acknowledged(directory)
     return release_pixels(directory)
 
 
@@ -240,7 +245,42 @@ def finish_prune(root):
     sync_directory(root)
 
 
-def maintain(root, *, keep_results=32, keep_data=False, active_task=None):
+def retain_receipt(root, directory, spec, report):
+    """Commit a small local receipt before removing centrally acknowledged evidence."""
+    record = {
+        "task": spec,
+        "result": report,
+        "submission": load_bounded(directory / "submission.json"),
+    }
+    raw = canonical(record).encode()
+    history = root / "receipts"
+    history.mkdir(exist_ok=True)
+    if history.is_symlink():
+        raise ValueError("Receipt history is redirected")
+    destination = history / f"{spec['task_id']}-{hashlib.sha256(raw).hexdigest()}.json.gz"
+    if destination.exists():
+        if destination.is_symlink() or gzip.decompress(destination.read_bytes()) != raw:
+            raise ValueError("Existing receipt differs")
+    else:
+        temporary = destination.with_suffix(".tmp")
+        if temporary.exists():
+            if temporary.is_symlink() or gzip.decompress(temporary.read_bytes()) != raw:
+                raise ValueError("Interrupted receipt differs")
+        else:
+            descriptor = os.open(
+                temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600
+            )
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(gzip.compress(raw, compresslevel=6, mtime=0))
+                stream.flush()
+                os.fsync(stream.fileno())
+        if gzip.decompress(temporary.read_bytes()) != raw:
+            raise ValueError("Receipt verification failed")
+        temporary.replace(destination)
+        sync_directory(history)
+
+
+def maintain(root, *, keep_results=32, keep_data=False, keep_evidence=False, active_task=None):
     """Only acknowledged, generated results are eligible for automatic cleanup."""
     if keep_data:
         return
@@ -263,6 +303,21 @@ def maintain(root, *, keep_results=32, keep_data=False, active_task=None):
             inventory = files(directory)
             if not inventory.keys() <= generated_names(spec, report):
                 continue  # Preserve files the user added to a result directory.
+            if not keep_evidence and "evidence_sha256" in load_bounded(
+                directory / "submission.json"
+            ):
+                retain_receipt(root, directory, spec, report)
+                write_json(
+                    root / JOURNAL,
+                    {
+                        "task_id": directory.name,
+                        "directory": identity(directory.lstat())[:2],
+                        "files": {name: sha256(directory / name) for name in inventory},
+                    },
+                )
+                sync_directory(root)
+                finish_prune(root)
+                continue
             history.append((record["completed_ns"], directory, inventory))
         history.sort(key=lambda item: (item[0], item[1].name))
         total = sum(info.st_size for _, _, inventory in history for info in inventory.values())
@@ -279,3 +334,18 @@ def maintain(root, *, keep_results=32, keep_data=False, active_task=None):
             sync_directory(root)
             finish_prune(root)
             total -= sum(info.st_size for info in inventory.values())
+        receipts = root / "receipts"
+        if receipts.exists():
+            if receipts.is_symlink():
+                raise ValueError("Receipt history is redirected")
+            old = sorted(receipts.glob("*.json.gz"), key=lambda p: (p.stat().st_mtime_ns, p.name))
+            total = sum(p.stat().st_size for p in old)
+            while len(old) > keep_results or (len(old) > 1 and total > HISTORY_BYTES):
+                path = old.pop(0)
+                if path.is_symlink() or not re.fullmatch(
+                    r"[a-f0-9]{64}-[a-f0-9]{64}\.json\.gz", path.name
+                ):
+                    raise ValueError("Unexpected receipt history member")
+                total -= path.stat().st_size
+                path.unlink()
+            sync_directory(receipts)

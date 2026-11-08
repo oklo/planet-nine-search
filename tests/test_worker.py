@@ -6,7 +6,7 @@ import pytest
 import requests
 
 from p9search import worker
-from p9search.storage import DirectoryLock, DiskBudget, read_json, write_json
+from p9search.storage import DirectoryLock, DiskBudget, read_json
 
 from .test_tasks import specification
 
@@ -25,7 +25,10 @@ def test_stopping_a_search_waits_for_actual_process_exit():
 
 
 def test_lost_submission_acknowledgement_retains_exact_claim_and_result(tmp_path):
-    write_json(tmp_path / "result.json", {"task_id": "example", "state": "searched"})
+    from .test_retention import completed_job
+
+    job = completed_job(tmp_path, acknowledged=False)
+    original = read_json(job / "result.json")
 
     class LostReply:
         def lease_body(self, **extra):
@@ -39,9 +42,9 @@ def test_lost_submission_acknowledgement_retains_exact_claim_and_result(tmp_path
             raise AssertionError("An unacknowledged claim must remain retryable")
 
     with pytest.raises(requests.Timeout):
-        worker.submit(LostReply(), tmp_path)
-    assert read_json(tmp_path / "result.json") == {"task_id": "example", "state": "searched"}
-    assert not (tmp_path / "submission.json").exists()
+        worker.submit(LostReply(), job)
+    assert read_json(job / "result.json") == original
+    assert not (job / "submission.json").exists()
 
 
 def test_lost_lease_stops_child_and_never_submits(tmp_path, monkeypatch):
@@ -260,8 +263,8 @@ def test_continuous_worker_reuses_space_across_download_search_submission_cycles
     assert len(claimed) == len(submitted) == count
     assert len(set(submitted)) == count
     assert not list(tmp_path.rglob("*.npy"))
-    assert len(list(tmp_path.glob("*/submission.json"))) == 3
-    assert completed_child.exists()
+    assert len(list(tmp_path.glob("receipts/*.json.gz"))) == 3
+    assert not completed_child.exists()
     assert budget.used() < 60000
     assert waits == [60, 60, 300]
 

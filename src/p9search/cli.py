@@ -19,6 +19,10 @@ def parser():
     commands = root.add_subparsers(dest="command", required=True)
     status = commands.add_parser("status", help="show the shared queue")
     status.add_argument("--coordinator", default=DEFAULT_COORDINATOR)
+    restore = commands.add_parser("restore", help="restore archived field evidence for inspection")
+    restore.add_argument("store", type=Path)
+    restore.add_argument("name")
+    restore.add_argument("--directory", type=Path, required=True)
     worker = commands.add_parser("worker", help="claim and search a field")
     worker.add_argument("--coordinator", default=DEFAULT_COORDINATOR)
     worker.add_argument(
@@ -36,6 +40,9 @@ def parser():
     )
     worker.add_argument(
         "--keep-data", action="store_true", help="retain downloaded pixels for local inspection"
+    )
+    worker.add_argument(
+        "--keep-evidence", action="store_true", help="retain local diagnostics for operator review"
     )
     worker.add_argument(
         "--keep-results",
@@ -84,6 +91,13 @@ def main(argv=None):
     try:
         if args.command == "status":
             print(canonical(Client(args.coordinator).request("status")))
+            return 0
+        if args.command == "restore":
+            from .archives import EvidenceStore
+
+            with EvidenceStore(args.store) as store:
+                store.restore(args.name, args.directory)
+            print(f"Restored {args.name} to {args.directory}; image pixels can be reacquired.")
             return 0
         if not all(math.isfinite(v) and v > 0 for v in (args.max_memory_gb, args.max_hours)):
             raise ValueError("Positive finite memory and runtime limits required")
