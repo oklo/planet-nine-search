@@ -2,6 +2,7 @@
 
 import gc
 import hashlib
+import os
 import time
 from pathlib import Path
 
@@ -112,6 +113,38 @@ def verify_archive(cube, directory):
     return cadences, finite
 
 
+def assemble_strips(directory, name, frames):
+    """Assemble in 20 MiB blocks, writing complete frames sequentially."""
+    strips = [
+        np.load(directory / "strips" / f"{row:03d}-{name}.npy", mmap_mode="r")
+        for row in range(0, 140, 4)
+    ]
+    if any(a.shape != (frames, 4, 140) or a.dtype != np.float32 for a in strips):
+        raise ValueError("Binned strip layout differs")
+    target = directory / f"{name}.npy"
+    temporary = target.with_suffix(".partial.npy")
+    with temporary.open("wb") as stream:
+        np.lib.format.write_array_header_1_0(
+            stream,
+            {
+                "descr": np.dtype(np.float32).str,
+                "fortran_order": False,
+                "shape": (frames, 140, 140),
+            },
+        )
+        for first in range(0, frames, 256):
+            stop = min(first + 256, frames)
+            block = np.empty((stop - first, 140, 140), dtype=np.float32)
+            for index, strip in enumerate(strips):
+                block[:, 4 * index : 4 * index + 4] = strip[first:stop]
+            stream.write(memoryview(block).cast("B"))
+            del block
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(target)
+    return target
+
+
 def acquire(directory, budget, progress):
     directory = Path(directory)
     ready = directory / "download.json"
@@ -199,16 +232,7 @@ def acquire(directory, budget, progress):
     budget.check(2 * nb * 140 * 140 * 4 + 4096)
     hashes = {"archive-rows.json": sha256(provenance_path)}
     for name in ("raw", "error"):
-        target = directory / f"{name}.npy"
-        temporary = target.with_suffix(".partial.npy")
-        output = np.lib.format.open_memmap(
-            temporary, mode="w+", dtype=np.float32, shape=(nb, 140, 140)
-        )
-        for start in range(0, 140, 4):
-            output[:, start : start + 4] = np.load(strips / f"{start:03d}-{name}.npy")
-        output.flush()
-        del output
-        temporary.replace(target)
+        target = assemble_strips(directory, name, nb)
         hashes[target.name] = sha256(target)
     for start, digests in record["strips"].items():
         hashes[f"strips/{int(start):03d}-native.npy"] = digests[0]
