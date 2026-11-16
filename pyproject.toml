@@ -39,4 +39,4 @@ select = ["E4", "E7", "E9", "F", "I"]
 testpaths = ["tests"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/coordinator", "/tools", "/examples", "/docs", "/environments", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/pyproject.toml"]
+include = ["/src", "/tests", "/coordinator", "/tools", "/skills", "/examples", "/docs", "/environments", "/README.md", "/LICENSE", "/CONTRIBUTING.md", "/pyproject.toml"]

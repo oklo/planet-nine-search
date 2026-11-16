@@ -26,6 +26,11 @@ receive full review. Use `p9 status` for queue counts and `p9 --help` for comman
 For images on a shared drive, keep the token on a private disk with
 `--credentials ~/.config/planet-nine/worker.json`.
 
+For an agent-managed background worker, use the
+[worker skill](skills/planet-nine-worker/SKILL.md). Its session helper starts,
+checks and stops a continuous worker; ordinary waits do not need an agent turn.
+Codex users can copy `skills/planet-nine-worker` into `~/.codex/skills/`.
+
 Scores are conditional statistics, not discovery significance. Injection
 recovery measures sensitivity under the declared models; it does not establish
 population-wide exclusion. Empirical templates for T < 12 stars are enabled
