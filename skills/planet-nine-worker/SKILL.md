@@ -23,7 +23,7 @@ The helper detaches `p9 worker --continuous` from the conversation and records i
 
 Use the same Python and helper path for `status` or `stop`. For a nondefault session directory, put `--session /private/path` before the action. The installed skill's helper is at `scripts/session.py` beside this file.
 
-Check roughly every ten minutes during an active supervision session. Use the host's scheduling facility for later checks if available and authorized; ending an agent turn does not schedule another one. Avoid spending tokens on rapid polling. Record only task transitions, submissions and interventions.
+Check roughly every ten minutes during an active supervision session. Use the host's scheduling facility for later checks if available and authorized; ending an agent turn does not schedule another one. Avoid spending tokens on rapid polling. Record only task transitions, submissions and interventions. After escalating a blocker, keep monitoring at lower frequency and report changes. End supervision when the user asks or another active supervisor takes over; a final status report alone is not a handoff.
 
 `status` reports the live process, recent output, free space, and the current search child's progress and timestamp. A running process alone is not evidence of progress. Read the named log and the current task's `worker.log` when progress stops. `p9 status` reports shared queue counts; zero active leases can mean review or approval is pending.
 
