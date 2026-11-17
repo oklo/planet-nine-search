@@ -36,4 +36,6 @@ The helper refuses overlapping sessions and checks process identity before stopp
 
 The worker removes completed image arrays once compact submission evidence is ready, before acknowledgement. It preserves the exact unacknowledged result and evidence for retry. After acknowledgement it keeps 32 compressed receipts, capped at 256 MiB. Routine interrupted downloads are discarded for recomputation. Each search log and session log is capped at 1 MiB; one previous session log is retained. Leave `--keep-data` and `--keep-evidence` off for routine work. Preserve unacknowledged results and credentials; resubmission is automatic after a restart. Do not delete evidence to get past a disk limit or lower the user's reserve without permission.
 
+Do not send failure emails. Keep bounded local diagnostics and report actionable failures in the conversation.
+
 Report completed submissions separately from accepted results and credited sensitivity. A participant cannot approve its own results, replenish the coordinator's queue, or infer expectation gained from its submission count. Report a sustained empty queue to the operator. The operator prepares new fields independently.
