@@ -452,6 +452,7 @@ def test_actual_disk_write_errors_are_classified_without_retrying_permissions(
     tmp_path, monkeypatch, number, expected
 ):
     import errno
+
     from p9search import cli
 
     # ENOSPC and EACCES have these portable POSIX values on supported platforms.
