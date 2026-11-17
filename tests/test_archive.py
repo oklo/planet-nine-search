@@ -37,10 +37,60 @@ def test_sequential_assembly_preserves_exact_npy_bytes_across_blocks(tmp_path):
     reference = tmp_path / "reference.npy"
     np.save(reference, expected)
     (tmp_path / "raw.partial.npy").write_bytes(b"interrupted prior assembly")
-    actual = assemble_strips(tmp_path, "raw", len(expected))
+    import hashlib
+
+    digest = hashlib.sha256()
+    actual = assemble_strips(tmp_path, "raw", len(expected), digest)
     assert actual.read_bytes() == reference.read_bytes()
+    assert digest.hexdigest() == hashlib.sha256(reference.read_bytes()).hexdigest()
     assert not (tmp_path / "raw.partial.npy").exists()
     np.save(tmp_path / "strips/136-raw.npy", expected[:, :3])
     with pytest.raises(ValueError, match="strip layout"):
         assemble_strips(tmp_path, "raw", len(expected))
     assert actual.read_bytes() == reference.read_bytes()
+
+
+@pytest.mark.parametrize("layout", ["C", "F", "sliced"])
+def test_written_checksums_match_exact_numpy_bytes_without_readback(tmp_path, monkeypatch, layout):
+    import hashlib
+    from pathlib import Path
+
+    from p9search.archive import save_array
+
+    array = (
+        np.random.default_rng(4).integers(0, 2**32, (5, 8, 10), dtype=np.uint32).view(np.float32)
+    )
+    if layout == "F":
+        array = np.asfortranarray(array)
+    elif layout == "sliced":
+        array = array[:, ::2, ::-1]
+    reference = tmp_path / "reference.npy"
+    np.save(reference, array)
+    expected = reference.read_bytes()
+    open_file = Path.open
+
+    def no_read(path, mode="r", *args, **kwargs):
+        assert "r" not in mode, "Saving must not reread the array"
+        return open_file(path, mode, *args, **kwargs)
+
+    with monkeypatch.context() as context:
+        context.setattr(Path, "open", no_read)
+        digest = save_array(tmp_path / "actual.npy", array)
+    assert (tmp_path / "actual.npy").read_bytes() == expected
+    assert digest == hashlib.sha256(expected).hexdigest()
+
+
+def test_cached_inputs_are_still_verified_on_restart(tmp_path):
+    from p9search.archive import acquire
+    from p9search.storage import DiskBudget, sha256, write_json
+
+    raw = tmp_path / "raw.npy"
+    np.save(raw, np.ones((2, 2, 2), dtype=np.float32))
+    write_json(tmp_path / "download.json", {"sha256": {"raw.npy": sha256(raw)}})
+    progress = []
+    budget = DiskBudget(tmp_path, 2**30, 0)
+    acquire(tmp_path, budget, lambda *a, **k: progress.append(a[0]))
+    assert progress == ["verify cached input"]
+    raw.write_bytes(b"corrupted cache")
+    with pytest.raises(ValueError, match="checksum differs"):
+        acquire(tmp_path, budget, lambda *a, **k: None)

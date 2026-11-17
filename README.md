@@ -15,14 +15,27 @@ p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
 Workers need operator approval at [oklo.org](https://oklo.org/planet-nine/).
-Each worker searches one field at a time. Submissions include compressed diagnostic
-evidence. After acknowledgement, workers keep only 32 small receipts; images and
-working files are removed. Use `--keep-data` to retain a local run for inspection.
+Each worker searches one field at a time and may start the next while its previous
+result awaits independent review. Two outstanding results pause new claims.
+Completed image arrays are deleted once compact submission evidence is ready,
+including during network outages. After acknowledgement, only 32 compressed
+receipts remain (at most 256 MiB). Routine interrupted downloads are discarded and
+recomputed. Unacknowledged results and evidence are preserved.
+Use `--keep-data` or `--keep-evidence` only for local diagnosis.
+
+Routine waits are silent; `work/worker-state.json` records the current state.
+Each search log and the session helper's output log retain at most 1 MiB. The helper
+keeps one bounded previous log. Use `--verbose` for state-change messages or
+`--log-file /private/path/worker.log` to bound output under another service manager.
+Continuous workers retry approval, queue, review, disk and temporary network waits.
+Unknown errors, integrity failures, and memory/runtime overruns stop for diagnosis.
 New volunteers receive three
 full reviews per software/device configuration, then 10% random audits. Trusted
 local runs receive consistency checks and occasional audits. Candidates always
 receive full review. Use `p9 status` for queue counts and `p9 --help` for commands. Defaults limit each search to
 24 GiB resident memory and four hours; disk and memory limits are adjustable.
+The 12 GiB allocation covers the work directory. Installation files, the small
+upstream PRF calibration cache, and operating-system swap are separate.
 For images on a shared drive, keep the token on a private disk with
 `--credentials ~/.config/planet-nine/worker.json`.
 

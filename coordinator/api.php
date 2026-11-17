@@ -96,11 +96,11 @@ function dispatch(PDO $db, string $action, array $body): array
                         $db,
                         "SELECT COUNT(*) FROM results WHERE worker_id=? AND status='pending'",
                         [$worker["id"]],
-                    )->fetchColumn() >= 1
+                    )->fetchColumn() >= 2
                 ) {
                     return [
                         "task" => null,
-                        "retry_after" => 300,
+                        "retry_after" => 60,
                         "reason" => "awaiting review",
                     ];
                 }

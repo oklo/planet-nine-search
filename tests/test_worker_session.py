@@ -78,6 +78,14 @@ with DirectoryLock(root, "worker.lock"):
         child.wait()
         (root / "released").touch()
 """)
+    main = package / "__main__.py"
+    body = main.read_text()
+    main.write_text(
+        "import sys\nfrom p9search.diagnostics import capture_output\n"
+        "from contextlib import nullcontext\n"
+        "log = sys.argv[sys.argv.index('--log-file') + 1] if '--log-file' in sys.argv else None\n"
+        "with capture_output(log) if log else nullcontext():\n" + "    exec(" + repr(body) + ")\n"
+    )
     monkeypatch.setenv("PYTHONPATH", str(package.parent))
     private = tmp_path / "private"
     private.mkdir()
@@ -123,7 +131,7 @@ def test_submitted_task_is_not_reported_as_active(worker):
     session.start(private, arguments)
     eventually(lambda: session.status(private).get("progress"))
     (work / "submit").touch()
-    eventually(lambda: "awaiting review" in session.status(private)["last_output"])
+    eventually(lambda: "awaiting review" in session.status(private, details=True)["last_output"])
     assert "task_id" not in session.status(private)
     assert (work / ("a" * 64) / "progress.json").exists()
 
@@ -172,3 +180,14 @@ def test_stale_identity_cannot_signal_a_different_process(tmp_path):
     finally:
         process.terminate()
         process.wait()
+
+
+def test_restarts_preserve_absolute_settings_without_growing_command(worker):
+    private, work, arguments = worker
+    session.start(private, arguments)
+    first = load_bounded(private / "session.json")["command"]
+    for _ in range(3):
+        session.stop(private)
+        session.start(private, [])
+        assert load_bounded(private / "session.json")["command"] == first
+    assert "last_output" not in session.status(private)
