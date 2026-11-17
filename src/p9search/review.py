@@ -87,10 +87,19 @@ def verify_signed(document, key):
 def review(args):
     spec = validate_task(load_bounded(args.task))
     submission = load_bounded(args.submission)
+    fields = {"task_id", "worker_id", "submission_digest", "result_json"}
     require(
-        set(submission) == {"task_id", "worker_id", "submission_digest", "result_json"},
+        set(submission) == fields or set(submission) == fields | {"submitted", "result_id"},
         "Expected one exported coordinator submission",
     )
+    if "submitted" in submission:
+        require(
+            type(submission["submitted"]) is int
+            and submission["submitted"] >= 0
+            and type(submission["result_id"]) is int
+            and submission["result_id"] > 0,
+            "Invalid submission ordering metadata",
+        )
     raw = submission["result_json"]
     require(
         isinstance(raw, str)

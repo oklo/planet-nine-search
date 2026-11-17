@@ -145,7 +145,7 @@ def test_external_work_keeps_credentials_on_private_disk(tmp_path, monkeypatch):
     assert saved["worker_id"] == "approved-worker"
     assert saved["token"] and saved["lease_token"]
     assert credentials.stat().st_mode & 0o777 == 0o600
-    assert not list(work.iterdir())
+    assert [p.name for p in work.iterdir()] == ["worker-state.json"]
 
 
 def test_one_worker_identity_cannot_run_in_two_work_directories(tmp_path):
@@ -306,3 +306,138 @@ def test_continuous_capacity_pause_recovers_without_registering_another_worker(
     with pytest.raises(KeyboardInterrupt):
         worker.work(args, budget)
     assert calls == ["register", 300, "claim"]
+
+
+def test_lost_ack_retries_identical_evidence_after_pixels_are_removed(tmp_path):
+    from .test_retention import completed_job
+
+    job = completed_job(tmp_path, acknowledged=False)
+    payloads = []
+
+    class Coordinator:
+        def lease_body(self, **extra):
+            return extra
+
+        def request(self, action, body):
+            assert not list(job.rglob("*.npy"))
+            payloads.append(body)
+            if len(payloads) == 1:
+                raise requests.Timeout("lost response")
+            return {"accepted": True, "verified": False}
+
+        def clear_claim(self):
+            pass
+
+    client = Coordinator()
+    with pytest.raises(requests.Timeout):
+        worker.submit(client, job)
+    worker.submit(client, job)
+    assert payloads[0] == payloads[1]
+    assert read_json(job / "submission.json")["verified"] is False
+
+
+@pytest.mark.parametrize(
+    "code,recoverable,delay", [(73, True, 300), (69, True, 60), (75, False, None), (1, False, None)]
+)
+def test_mid_search_recovery_is_limited_to_capacity_and_transport(
+    tmp_path, monkeypatch, capsys, code, recoverable, delay
+):
+    import hashlib
+
+    from p9search.cli import parser
+    from p9search.storage import canonical
+
+    from .test_retention import completed_job
+
+    actions, releases, waits = [], [], []
+    spec = specification(label="field 0")
+
+    class Coordinator:
+        def __init__(self, *args):
+            self.credentials = {}
+
+        def register(self, name):
+            actions.append("register")
+
+        def save(self):
+            pass
+
+        def clear_claim(self):
+            self.credentials.pop("task_id", None)
+            self.credentials.pop("lease_token", None)
+
+        def lease_body(self, **extra):
+            return extra
+
+        def request(self, action, body):
+            actions.append(action)
+            if action == "claim":
+                if actions.count("claim") == 2:
+                    assert not (tmp_path / spec["task_id"]).exists()
+                    raise KeyboardInterrupt
+                return {
+                    "task": spec,
+                    "task_id": spec["task_id"],
+                    "lease_seconds": 1800,
+                    "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
+                }
+            if action == "release":
+                releases.append(body)
+                return {"released": True}
+            pytest.fail("An interrupted search must never submit")
+
+    class Child:
+        returncode = code
+
+        def __init__(self, *args, **kwargs):
+            job = completed_job(tmp_path, acknowledged=False)
+            (job / "result.json").unlink()
+
+        def poll(self):
+            return self.returncode
+
+    monkeypatch.setattr(worker, "Client", Coordinator)
+    monkeypatch.setattr(worker.subprocess, "Popen", Child)
+    monkeypatch.setattr(worker.time, "sleep", waits.append)
+    args = parser().parse_args(["worker", "--continuous", "--directory", str(tmp_path)])
+    with pytest.raises(KeyboardInterrupt if recoverable else RuntimeError):
+        worker.work(args, DiskBudget(tmp_path, 2**30, 0))
+    assert actions.count("register") == 1
+    assert releases[0]["failed"] is (not recoverable)
+    assert waits == ([delay] if recoverable else [])
+    assert capsys.readouterr().out == ""
+    if not recoverable:
+        assert list(tmp_path.rglob("*.npy"))
+        assert read_json(tmp_path / "worker-state.json")["state"] == "held"
+
+
+def test_approval_wait_preserves_identity_and_retries_quietly(tmp_path, monkeypatch, capsys):
+    from p9search.cli import parser
+
+    calls, waits, tokens = [], [], []
+
+    class Coordinator:
+        def __init__(self, *args):
+            self.credentials = {}
+
+        def register(self, name):
+            calls.append("register")
+
+        def save(self):
+            pass
+
+        def request(self, action, body):
+            calls.append(action)
+            tokens.append(body["lease_token"])
+            if len(tokens) < 4:
+                raise worker.CoordinatorError(403, "Worker needs operator approval")
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(worker, "Client", Coordinator)
+    monkeypatch.setattr(worker.time, "sleep", waits.append)
+    args = parser().parse_args(["worker", "--continuous", "--directory", str(tmp_path)])
+    with pytest.raises(KeyboardInterrupt):
+        worker.work(args, DiskBudget(tmp_path, 2**30, 0))
+    assert calls.count("register") == 1 and len(set(tokens)) == 1
+    assert waits == [300, 300, 300]
+    assert not capsys.readouterr().out

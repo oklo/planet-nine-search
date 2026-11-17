@@ -207,7 +207,7 @@ def test_download_timeout_exhaustion_removes_partial_file(tmp_path, monkeypatch)
     monkeypatch.setattr(network, "PublicConnection", Connection)
     monkeypatch.setattr(network.time, "sleep", sleeps.append)
     destination = tmp_path / "bundle.zip"
-    with pytest.raises(TimeoutError, match="read timed out"):
+    with pytest.raises(network.TransportError, match="transport retries exhausted"):
         network.download("https://oklo.org/file", destination, 4)
     assert len(attempts) == 3
     assert sleeps == [30, 30]

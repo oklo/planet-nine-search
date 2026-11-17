@@ -11,7 +11,7 @@ import numpy as np
 from . import __version__, runtime
 from .archive import acquire
 from .calibration import has_source, response_admitted, response_check, unchanged_pixels
-from .foreground import QualityRejected, fit
+from .foreground import QualityRejected, fit, screen
 from .injections import inject
 from .policy import check_prior_geometry, screen_rows
 from .provenance import execution_manifest, source_hash
@@ -140,12 +140,12 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
         write_json(directory / "result.json", report)
         return report
 
-    prepared = []
+    screened = []
     for sector in sectors:
         acquire(sector.directory, budget, progress)
-        progress("fit foreground", sector=int(sector.meta["sector"]))
+        progress("screen pixels", sector=int(sector.meta["sector"]))
         try:
-            model = fit(
+            quality = screen(
                 sector,
                 empirical_stars=int(sector.meta["sector"]) in policy["empirical_star_sectors"],
             )
@@ -155,12 +155,20 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
             )
             return finish("quality_rejected")
         report["quality"].append(
-            {"sector": int(sector.meta["sector"]), "masked_fraction": model["masked_fraction"]}
+            {"sector": int(sector.meta["sector"]), "masked_fraction": quality["masked_fraction"]}
         )
+        screened.append(quality)
+        gc.collect()
+        runtime.release()
+    prepared = []
+    for sector, quality in zip(sectors, screened, strict=True):
+        progress("fit foreground", sector=int(sector.meta["sector"]))
+        model = fit(sector, screened=quality)
         prepared.append(prepare(sector, model))
         del model
         gc.collect()
         runtime.release()
+    del screened, quality
     full, grid = grids(sectors)
     check_prior_geometry(policy["prior"], frame, grid)
     local = {s["inverse_distance"]: s["local_angular"] for s in full}

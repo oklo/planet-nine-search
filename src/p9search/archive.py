@@ -10,6 +10,7 @@ import numpy as np
 from astropy.io import fits
 from astropy.wcs import WCS
 
+from .network import TransportError, transport_error
 from .science.binning import bin_detector_cadences
 from .storage import read_json, sha256, write_json
 
@@ -113,7 +114,29 @@ def verify_archive(cube, directory):
     return cadences, finite
 
 
-def assemble_strips(directory, name, frames):
+class DigestWriter:
+    def __init__(self, stream, digest):
+        self.stream, self.digest = stream, digest
+
+    def write(self, data):
+        written = self.stream.write(data)
+        self.digest.update(data[:written])
+        return written
+
+
+def save_array(path, array):
+    """Hash the bytes while writing, without reading the new pixel file back."""
+    temporary = path.with_suffix(".partial.npy")
+    digest = hashlib.sha256()
+    with temporary.open("wb") as stream:
+        np.save(DigestWriter(stream, digest), array, allow_pickle=False)
+        stream.flush()
+        os.fsync(stream.fileno())
+    temporary.replace(path)
+    return digest.hexdigest()
+
+
+def assemble_strips(directory, name, frames, digest=None):
     """Assemble in 20 MiB blocks, writing complete frames sequentially."""
     strips = [
         np.load(directory / "strips" / f"{row:03d}-{name}.npy", mmap_mode="r")
@@ -124,8 +147,9 @@ def assemble_strips(directory, name, frames):
     target = directory / f"{name}.npy"
     temporary = target.with_suffix(".partial.npy")
     with temporary.open("wb") as stream:
+        writer = DigestWriter(stream, digest) if digest is not None else stream
         np.lib.format.write_array_header_1_0(
-            stream,
+            writer,
             {
                 "descr": np.dtype(np.float32).str,
                 "fortran_order": False,
@@ -137,7 +161,7 @@ def assemble_strips(directory, name, frames):
             block = np.empty((stop - first, 140, 140), dtype=np.float32)
             for index, strip in enumerate(strips):
                 block[:, 4 * index : 4 * index + 4] = strip[first:stop]
-            stream.write(memoryview(block).cast("B"))
+            writer.write(memoryview(block).cast("B"))
             del block
         stream.flush()
         os.fsync(stream.fileno())
@@ -151,6 +175,7 @@ def acquire(directory, budget, progress):
     if ready.exists():
         manifest = read_json(ready)
         for relative, digest in manifest["sha256"].items():
+            progress("verify cached input", file=str(directory / relative))
             if sha256(directory / relative) != digest:
                 raise ValueError("Completed download checksum differs")
         return
@@ -200,9 +225,11 @@ def acquire(directory, budget, progress):
                 break
             except ValueError:
                 raise
-            except Exception:
-                if attempt == 2:
+            except Exception as error:
+                if not transport_error(error):
                     raise
+                if attempt == 2:
+                    raise TransportError("Archive transport retries exhausted") from error
                 time.sleep(2**attempt)
         decoded = np.vstack(fetched).transpose(2, 1, 0)
         if decoded.shape != (2, len(finite), 560):
@@ -221,19 +248,18 @@ def acquire(directory, budget, progress):
         )
         np.testing.assert_allclose(reduced[2], cadences["time"], rtol=0, atol=1e-10)
         np.testing.assert_array_equal(reduced[3], cadences["keep"])
-        for path, array in zip(paths, [raw, *reduced[:2]], strict=True):
-            temporary = path.with_suffix(".partial.npy")
-            np.save(temporary, array)
-            temporary.replace(path)
-        record["strips"][str(start)] = [sha256(p) for p in paths]
+        record["strips"][str(start)] = [
+            save_array(path, array) for path, array in zip(paths, [raw, *reduced[:2]], strict=True)
+        ]
         write_json(checkpoint, record)
         del raw, error, fetched, decoded, reduced
         gc.collect()
     budget.check(2 * nb * 140 * 140 * 4 + 4096)
     hashes = {"archive-rows.json": sha256(provenance_path)}
     for name in ("raw", "error"):
-        target = assemble_strips(directory, name, nb)
-        hashes[target.name] = sha256(target)
+        digest = hashlib.sha256()
+        target = assemble_strips(directory, name, nb, digest)
+        hashes[target.name] = digest.hexdigest()
     for start, digests in record["strips"].items():
         hashes[f"strips/{int(start):03d}-native.npy"] = digests[0]
     write_json(ready, {"sha256": hashes, "native_cadences": nt, "binned_cadences": nb})

@@ -386,16 +386,18 @@ def test_claim_limit_rejects_values_outside_one_to_ninety_six(coordinator):
 
 def test_higher_daily_limit_does_not_bypass_pending_review(coordinator):
     seed(coordinator, 1)
-    second = seed(coordinator, 2)
+    seed(coordinator, 2)
+    third = seed(coordinator, 3)
     pair = worker(coordinator)
     assert set_claim_limit(coordinator, pair, 12).returncode == 0
+    submission(coordinator, pair)
     submission(coordinator, pair)
     response = claim(coordinator, pair)
     assert response.status_code == 200
     assert response.json()["task"] is None
-    assert response.json()["reason"] == "awaiting review"
+    assert response.json() == {"task": None, "reason": "awaiting review", "retry_after": 60}
     assert (
-        coordinator[1]("SELECT state FROM tasks WHERE id=?", [second["task_id"]])[0][0] == "pending"
+        coordinator[1]("SELECT state FROM tasks WHERE id=?", [third["task_id"]])[0][0] == "pending"
     )
 
 
@@ -451,11 +453,12 @@ def test_registration_requires_approval_and_one_worker_cannot_drain_queue(coordi
     assert claim(coordinator, pending).status_code == 403
     attacker = worker(coordinator)
     submission(coordinator, attacker)
+    submission(coordinator, attacker)
     for _ in range(4):
         response = claim(coordinator, attacker)
         assert response.status_code == 200
         assert response.json()["task"] is None
-    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='pending'")[0][0] == 4
+    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='pending'")[0][0] == 3
     assert coordinator[1]("SELECT SUM(verified) FROM results")[0][0] == 0
 
 
@@ -876,3 +879,36 @@ def test_full_replay_contract_rejects_an_omitted_candidate(coordinator, monkeypa
     assert coordinator[1]("SELECT state FROM tasks")[0][0] == "pending"
     assert coordinator[1]("SELECT status,verified FROM results")[0] == ("rejected", 0)
     assert coordinator[1]("SELECT status FROM workers")[0][0] == "pending"
+
+
+def test_review_overlap_is_serialized_bounded_and_exports_oldest_first(coordinator):
+    for number in range(1, 5):
+        seed(coordinator, number)
+    pair = worker(coordinator)
+    first = submission(coordinator, pair)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        claims = list(executor.map(lambda _: claim(coordinator, pair), range(4)))
+    assert all(r.status_code == 200 for r in claims)
+    assert len({r.json()["task_id"] for r in claims}) == 1
+    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='leased'")[0][0] == 1
+    second = submission(coordinator, pair)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        blocked = list(executor.map(lambda _: claim(coordinator, pair), range(4)))
+    assert all(
+        r.json() == {"task": None, "reason": "awaiting review", "retry_after": 60} for r in blocked
+    )
+    assert coordinator[1]("SELECT COUNT(*),SUM(verified) FROM results")[0] == (2, 0)
+    # Equal timestamps require a deterministic result-id tiebreaker.
+    coordinator[1]("UPDATE results SET submitted=1234")
+    exported = coordinator[2]("results")
+    assert exported.returncode == 0, exported.stderr
+    rows = [json.loads(line) for line in exported.stdout.splitlines()]
+    assert [r["task_id"] for r in rows] == [first["task_id"], second["task_id"]]
+    assert all(type(r["submitted"]) is int and type(r["result_id"]) is int for r in rows)
+    assert rows[0]["result_id"] < rows[1]["result_id"]
+    assert claim(coordinator, worker(coordinator)).json()["task"] is not None
+    # Simulate the independent reviewer freeing one slot; no worker API accepts it.
+    coordinator[1](
+        "UPDATE results SET status='accepted',verified=1 WHERE task_id=?", [first["task_id"]]
+    )
+    assert claim(coordinator, pair).json()["task"] is not None

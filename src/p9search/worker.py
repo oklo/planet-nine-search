@@ -11,8 +11,10 @@ from pathlib import Path
 import requests
 
 from .client import Client, CoordinatorError
+from .diagnostics import BoundedOutput, State
 from .evidence import pack
-from .retention import maintain
+from .network import TransportError
+from .retention import discard_interrupted, maintain, release_pixels
 from .storage import DirectoryLock, DiskCapacityError, canonical, read_json, sha256, write_json
 from .tasks import PROTOCOL, validate_task
 
@@ -21,14 +23,15 @@ def transient(error):
     return not isinstance(error, CoordinatorError) or error.status >= 500 or error.status == 429
 
 
-def retry_request(operation, continuous):
+def retry_request(operation, continuous, state=None):
     while True:
         try:
             return operation()
         except (requests.RequestException, CoordinatorError) as error:
             if not continuous or not transient(error):
                 raise
-            print("Coordinator temporarily unavailable; retrying in one minute.", flush=True)
+            if state:
+                state("transport_wait", "Coordinator unavailable; retrying in one minute.")
             time.sleep(60)
 
 
@@ -49,9 +52,12 @@ def stop_child(child):
         child.wait()
 
 
-def submit(client, job_directory):
+def submit(client, job_directory, *, keep_data=False):
     result = read_json(job_directory / "result.json")
     evidence = pack(job_directory, result)
+    if not keep_data:
+        with DirectoryLock(job_directory.parent, "search.lock"):
+            release_pixels(job_directory)
     result = {**result, "evidence": evidence}
     reply = client.request("submit", client.lease_body(result=result))
     if reply != {"accepted": True, "verified": False}:
@@ -65,25 +71,36 @@ def submit(client, job_directory):
         },
     )
     client.clear_claim()
-    print("Submitted for independent review.", flush=True)
 
 
 def work(args, budget):
     credentials = (args.credentials or args.directory / "credentials.json").resolve()
     with DirectoryLock(credentials.parent, credentials.name + ".lock"):
-        _work(args, budget, credentials)
+        state = State(args.directory, getattr(args, "verbose", False))
+        try:
+            _work(args, budget, credentials, state)
+        except KeyboardInterrupt:
+            state("stopped", "Worker stopped; compact evidence retained.")
+            raise
+        except Exception as error:
+            state("held", str(error))
+            raise
 
 
-def _work(args, budget, credentials):
+def _work(args, budget, credentials, state):
     root = Path(args.directory).resolve()
     client = Client(args.coordinator, credentials)
-    retry_request(lambda: client.register(args.name), args.continuous)
+    state("connecting", "Registering the existing worker identity.")
+    retry_request(lambda: client.register(args.name), args.continuous, state)
+    keep_data = getattr(args, "keep_data", False)
     # If the previous response was lost, repeat the identical submission first.
     if "task_id" in client.credentials:
         old = root / client.credentials["task_id"]
         if (old / "result.json").exists():
             try:
-                retry_request(lambda: submit(client, old), args.continuous)
+                retry_request(
+                    lambda: submit(client, old, keep_data=keep_data), args.continuous, state
+                )
             except CoordinatorError as error:
                 if error.status != 409:
                     raise
@@ -103,7 +120,7 @@ def _work(args, budget, credentials):
         except DiskCapacityError:
             if not args.continuous:
                 raise
-            print("Waiting for disk space; retrying in five minutes.", flush=True)
+            state("capacity_wait", "Waiting for disk space; retrying in five minutes.")
             time.sleep(300)
             continue
         if "lease_token" not in client.credentials:
@@ -119,16 +136,24 @@ def _work(args, budget, credentials):
                 },
             )
         except (requests.RequestException, CoordinatorError) as error:
+            if (
+                args.continuous
+                and isinstance(error, CoordinatorError)
+                and error.status == 403
+                and error.message == "Worker needs operator approval"
+            ):
+                state(
+                    "approval_wait", "Operator approval required; retaining this worker identity."
+                )
+                time.sleep(300)
+                continue
             if not args.continuous or not transient(error):
                 raise
-            print("Coordinator temporarily unavailable; retrying in one minute.", flush=True)
+            state("transport_wait", "Coordinator unavailable; retrying in one minute.")
             time.sleep(60)
             continue
         if claim["task"] is None:
-            print(
-                claim.get("reason", "No eligible field is available for this disk allocation."),
-                flush=True,
-            )
+            state("queue_wait", claim.get("reason", "No eligible field for this disk allocation."))
             if not args.continuous:
                 return
             time.sleep(max(1, min(300, claim.get("retry_after", 60))))
@@ -145,84 +170,119 @@ def _work(args, budget, credentials):
         folder = root / spec["task_id"]
         folder.mkdir(exist_ok=True)
         write_json(folder / "task.json", spec)
-        print(f"Claimed {spec['label']}: {folder}", flush=True)
+        state("searching", spec["label"], task_id=spec["task_id"])
         child = None
         deadline = time.monotonic() + claim["lease_seconds"] - 60
         next_heartbeat = time.monotonic() + min(300, claim["lease_seconds"] / 3)
         try:
-            with (folder / "worker.log").open("a") as log:
-                command = [
-                    sys.executable,
-                    "-m",
-                    "p9search",
-                    "run",
-                    str(folder / "task.json"),
-                    "--directory",
-                    str(root),
-                    "--max-disk-gb",
-                    str(args.max_disk_gb),
-                    "--reserve-gb",
-                    str(args.reserve_gb),
-                    "--device",
-                    args.device,
-                    "--threads",
-                    str(args.threads),
-                    "--max-memory-gb",
-                    str(args.max_memory_gb),
-                    "--max-hours",
-                    str(args.max_hours),
-                ]
-                for origin in args.bundle_origin:
-                    command.extend(["--bundle-origin", origin])
-                environment = dict(os.environ)
-                for name in ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "VECLIB_MAXIMUM_THREADS"):
-                    environment[name] = str(args.threads)
-                child = subprocess.Popen(
-                    command,
-                    stdout=log,
-                    stderr=subprocess.STDOUT,
-                    env=environment,
-                    start_new_session=os.name == "posix",
-                )
-                while child.poll() is None:
-                    budget.check()
-                    now = time.monotonic()
-                    if now >= deadline:
-                        raise RuntimeError("Lease could not be renewed; stopping search")
-                    if now >= next_heartbeat:
-                        try:
-                            reply = client.request("heartbeat", client.lease_body())
-                            deadline = time.monotonic() + reply["lease_seconds"] - 60
-                        except (requests.RequestException, CoordinatorError) as error:
-                            if isinstance(error, CoordinatorError) and error.status < 500:
-                                raise
-                            print(
-                                "Heartbeat temporarily unavailable; retrying within the lease.",
-                                flush=True,
-                            )
-                        next_heartbeat = time.monotonic() + 60
-                    time.sleep(2)
-            if child.returncode != 0:
-                raise RuntimeError(
-                    f"Search exited {child.returncode}; inspect {folder / 'worker.log'}"
-                )
+            with BoundedOutput(folder / "worker.log") as log:
+                try:
+                    command = [
+                        sys.executable,
+                        "-m",
+                        "p9search",
+                        "run",
+                        str(folder / "task.json"),
+                        "--directory",
+                        str(root),
+                        "--max-disk-gb",
+                        str(args.max_disk_gb),
+                        "--reserve-gb",
+                        str(args.reserve_gb),
+                        "--device",
+                        args.device,
+                        "--threads",
+                        str(args.threads),
+                        "--max-memory-gb",
+                        str(args.max_memory_gb),
+                        "--max-hours",
+                        str(args.max_hours),
+                    ]
+                    for origin in args.bundle_origin:
+                        command.extend(["--bundle-origin", origin])
+                    environment = dict(os.environ)
+                    for name in (
+                        "OPENBLAS_NUM_THREADS",
+                        "OMP_NUM_THREADS",
+                        "VECLIB_MAXIMUM_THREADS",
+                    ):
+                        environment[name] = str(args.threads)
+                    child = subprocess.Popen(
+                        command,
+                        stdout=log,
+                        stderr=subprocess.STDOUT,
+                        env=environment,
+                        start_new_session=os.name == "posix",
+                    )
+                    while child.poll() is None:
+                        log.check()
+                        budget.check()
+                        now = time.monotonic()
+                        if now >= deadline:
+                            raise TransportError("Lease could not be renewed; stopping search")
+                        if now >= next_heartbeat:
+                            try:
+                                reply = client.request("heartbeat", client.lease_body())
+                                deadline = time.monotonic() + reply["lease_seconds"] - 60
+                            except (requests.RequestException, CoordinatorError) as error:
+                                if isinstance(error, CoordinatorError) and error.status == 409:
+                                    raise TransportError("Lease expired or was released") from error
+                                if not transient(error):
+                                    raise
+                                state(
+                                    "searching",
+                                    "Heartbeat unavailable; retrying within lease.",
+                                    task_id=spec["task_id"],
+                                )
+                            next_heartbeat = time.monotonic() + 60
+                        time.sleep(2)
+                    if child.returncode == 73:
+                        raise DiskCapacityError(
+                            "Search reached its disk allocation or free-space reserve"
+                        )
+                    if child.returncode == 69:
+                        raise TransportError("Archive temporarily unavailable")
+                    if child.returncode != 0:
+                        raise RuntimeError(
+                            f"Search exited {child.returncode}; inspect {folder / 'worker.log'}"
+                        )
+                except BaseException:
+                    if child is not None:
+                        stop_child(child)
+                    raise
         except BaseException as error:
-            if child is not None:
-                stop_child(child)
+            recoverable = isinstance(error, (DiskCapacityError, TransportError))
+            body = client.lease_body(
+                failed=not (recoverable or isinstance(error, KeyboardInterrupt)),
+                reason=str(error)[:1024],
+            )
             try:
-                client.request(
-                    "release",
-                    client.lease_body(
-                        failed=not isinstance(error, KeyboardInterrupt), reason=str(error)
-                    ),
+                retry_request(
+                    lambda: client.request("release", body),
+                    args.continuous and recoverable,
+                    state,
                 )
                 client.clear_claim()
-            except (requests.RequestException, CoordinatorError):
-                pass  # An unreachable coordinator will expire the lease.
-            raise
+            except CoordinatorError as release_error:
+                if release_error.status == 409:
+                    client.clear_claim()
+                elif recoverable:
+                    raise
+            except requests.RequestException:
+                pass  # A stopped worker's unreachable lease will expire.
+            if not (args.continuous and recoverable):
+                raise
+            if not keep_data:
+                with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
+                    discard_interrupted(folder)
+            wait = 300 if isinstance(error, DiskCapacityError) else 60
+            state("capacity_wait" if wait == 300 else "transport_wait", str(error))
+            time.sleep(wait)
+            continue
         # Keep the claim and exact result if acknowledgement is lost; next run
         # retries submission before claiming anything else.
-        retry_request(lambda: submit(client, folder), args.continuous)
+        state("submitting", "Submitting for independent review.", task_id=spec["task_id"])
+        retry_request(lambda: submit(client, folder, keep_data=keep_data), args.continuous, state)
         maintain(
             root,
             keep_results=getattr(args, "keep_results", 32),

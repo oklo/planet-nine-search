@@ -96,6 +96,7 @@ def test_informative_sectors_alone_can_qualify_only_for_unchanged_empty_injectio
     monkeypatch.setattr(search, "acquire", lambda *a: None)
     monkeypatch.setattr(search, "SkyFrame", lambda *a: None)
     monkeypatch.setattr(search, "SectorGeometry", sector)
+    monkeypatch.setattr(search, "screen", lambda *a, **k: {"masked_fraction": 0.0})
     monkeypatch.setattr(search, "fit", fit)
     monkeypatch.setattr(search, "prepare", lambda s, m: m)
     monkeypatch.setattr(search, "bin_template", template)
@@ -129,3 +130,35 @@ def test_informative_sectors_alone_can_qualify_only_for_unchanged_empty_injectio
         assert response["assessed"] == expected
         assert response["recovered"] is (True if expected else None)
         assert result["source_sha256"] == result["launch"]["source_sha256"]
+
+
+def test_bad_later_sector_rejects_before_any_expensive_foreground_fit(tmp_path, monkeypatch):
+    spec = specification(sectors=[1, 28, 68])
+    visited = []
+    monkeypatch.setattr(search, "fetch_bundle", lambda *a: tmp_path)
+    monkeypatch.setattr(search, "SkyFrame", lambda *a: None)
+    monkeypatch.setattr(
+        search,
+        "SectorGeometry",
+        lambda p, f: SimpleNamespace(directory=p, meta={"sector": int(p.name[1:])}),
+    )
+    monkeypatch.setattr(search, "acquire", lambda *a: None)
+
+    def screen(sector, **kwargs):
+        sid = sector.meta["sector"]
+        visited.append(sid)
+        if sid == 68:
+            raise search.QualityRejected(0.109)
+        return {"masked_fraction": 0.001}
+
+    def expensive(*args, **kwargs):
+        pytest.fail("No temporal fit or Hough maps should run before all sectors pass quality")
+
+    monkeypatch.setattr(search, "screen", screen)
+    monkeypatch.setattr(search, "fit", expensive)
+    monkeypatch.setattr(search, "prepare", expensive)
+    result = search.run(spec, tmp_path, DiskBudget(tmp_path, 2**30, 0))
+    assert visited == [1, 28, 68]
+    assert result["state"] == "quality_rejected"
+    assert result["quality"][-1] == {"sector": 68, "masked_fraction": 0.109}
+    assert result["exclusion_credit"] == 0

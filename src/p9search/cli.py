@@ -4,12 +4,22 @@ import argparse
 import math
 import os
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 from .client import DEFAULT_COORDINATOR, Client
 from .limits import ResourceGuard
-from .network import DEFAULT_ORIGINS
-from .storage import GIB, DirectoryLock, DiskBudget, canonical, load_bounded, read_json, sha256
+from .network import DEFAULT_ORIGINS, TransportError, transport_error
+from .storage import (
+    GIB,
+    DirectoryLock,
+    DiskBudget,
+    DiskCapacityError,
+    canonical,
+    load_bounded,
+    read_json,
+    sha256,
+)
 
 
 def parser():
@@ -38,6 +48,8 @@ def parser():
         action="store_true",
         help="keep searching; wait through queue, review and capacity pauses",
     )
+    worker.add_argument("--verbose", action="store_true", help="print worker state changes")
+    worker.add_argument("--log-file", type=Path, help="capture session output in a 1 MiB tail log")
     worker.add_argument(
         "--keep-data", action="store_true", help="retain downloaded pixels for local inspection"
     )
@@ -88,6 +100,14 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    from .diagnostics import capture_output
+
+    log = getattr(args, "log_file", None)
+    with capture_output(log) if log else nullcontext():
+        return execute(args)
+
+
+def execute(args):
     try:
         if args.command == "status":
             print(canonical(Client(args.coordinator).request("status")))
@@ -146,6 +166,12 @@ def main(argv=None):
     except KeyboardInterrupt:
         print("Stopped; local evidence retained.", file=sys.stderr)
         return 130
+    except DiskCapacityError as error:
+        print(f"p9: {error}", file=sys.stderr)
+        return 73
+    except TransportError as error:
+        print(f"p9: {error}", file=sys.stderr)
+        return 69
     except Exception as error:
         print(f"p9: {error}", file=sys.stderr)
-        return 1
+        return 69 if args.command == "run" and transport_error(error) else 1

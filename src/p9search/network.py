@@ -9,6 +9,46 @@ from urllib.parse import urljoin, urlsplit
 
 from . import USER_AGENT
 
+
+class TransportError(RuntimeError):
+    """A retryable upstream outage, distinct from invalid or changed data."""
+
+
+def transport_error(error):
+    import requests
+
+    if isinstance(error, (ssl.SSLError, requests.exceptions.SSLError)):
+        return False
+    if isinstance(
+        error,
+        (
+            TimeoutError,
+            ConnectionError,
+            requests.Timeout,
+            requests.ConnectionError,
+            http.client.IncompleteRead,
+            http.client.RemoteDisconnected,
+        ),
+    ):
+        return True
+    from botocore.exceptions import (
+        ClientError,
+        ConnectionClosedError,
+        ConnectTimeoutError,
+        EndpointConnectionError,
+        ReadTimeoutError,
+    )
+
+    if isinstance(
+        error,
+        (ConnectionClosedError, EndpointConnectionError, ReadTimeoutError, ConnectTimeoutError),
+    ):
+        return True
+    return isinstance(error, ClientError) and error.response.get("ResponseMetadata", {}).get(
+        "HTTPStatusCode", 0
+    ) in (429, 500, 502, 503, 504)
+
+
 DEFAULT_ORIGINS = ("https://oklo.org",)
 
 
@@ -79,6 +119,8 @@ def download(url, destination, expected_bytes, origins=DEFAULT_ORIGINS):
                         url = urljoin(url, location)
                         public_url(url, origins)
                         continue
+                    if response.status == 429 or response.status >= 500:
+                        raise TransportError(f"Bundle temporarily unavailable: {response.status}")
                     if (
                         response.status != 200
                         or response.getheader("Content-Encoding", "identity") != "identity"
@@ -102,11 +144,17 @@ def download(url, destination, expected_bytes, origins=DEFAULT_ORIGINS):
                 finally:
                     connection.close()
             raise ValueError("Too many bundle redirects")
-        except TimeoutError:
+        except (
+            TimeoutError,
+            ConnectionError,
+            http.client.IncompleteRead,
+            http.client.RemoteDisconnected,
+            TransportError,
+        ) as error:
             if partial:
                 destination.unlink(missing_ok=True)
             if attempt == 2:
-                raise
+                raise TransportError("Bundle transport retries exhausted") from error
             time.sleep(30)
         except BaseException:
             if partial:

@@ -13,6 +13,7 @@ from pathlib import Path
 import psutil
 
 from p9search.cli import parser as worker_parser
+from p9search.diagnostics import BoundedOutput
 from p9search.storage import DirectoryLock, load_bounded, write_json
 
 
@@ -42,7 +43,7 @@ def tail(path, size=8192):
         return ""
 
 
-def status(session):
+def status(session, details=False):
     state = session / "session.json"
     if not state.exists():
         return {"state": "not_started"}
@@ -56,11 +57,15 @@ def status(session):
         "started": record["created"],
         "directory": str(root),
         "log": str(log),
-        "last_output": tail(log).splitlines()[-8:],
         "log_updated": log.stat().st_mtime if log.exists() else None,
         "free_gib": round(shutil.disk_usage(root).free / 2**30, 2) if root.exists() else None,
         "retained_receipts": len(list((root / "receipts").glob("*.json.gz"))),
     }
+    if details or not process:
+        result["last_output"] = tail(log).splitlines()[-8:]
+    state_path = root / "worker-state.json"
+    if state_path.exists() and state_path.stat().st_mtime >= record["created"]:
+        result["worker"] = load_bounded(state_path)
     # A stale task directory is not proof of an active search. Use the live child.
     if process:
         for child in process.children():
@@ -83,12 +88,14 @@ def status(session):
 
 def start(session, arguments):
     record_path = session / "session.json"
+    resuming = False
     if record_path.exists():
         record = load_bounded(record_path)
         if live_process(record):
             return status(session)
         if not arguments:
             arguments = record["command"][4:]
+            resuming = True
     args = worker_parser().parse_args(["worker", "--continuous", *arguments])
     root = args.directory.expanduser().resolve()
     credentials = (args.credentials or session / "credentials.json").expanduser().resolve()
@@ -100,33 +107,39 @@ def start(session, arguments):
         DirectoryLock(credentials.parent, credentials.name + ".lock"),
     ):
         pass
-    command = [
-        sys.executable,
-        "-m",
-        "p9search",
-        "worker",
-        "--continuous",
-        *arguments,
-        "--directory",
-        str(root),
-        "--credentials",
-        str(credentials),
-    ]
+    log = session / "worker.log"
+    command = [sys.executable, "-m", "p9search", "worker"]
+    if resuming:
+        command.extend(arguments)
+        if args.log_file is None:  # Upgrade a session created before bounded logs.
+            command.extend(["--log-file", str(log)])
+    else:
+        command.extend(
+            [
+                "--continuous",
+                *arguments,
+                "--directory",
+                str(root),
+                "--credentials",
+                str(credentials),
+                "--log-file",
+                str(log),
+            ]
+        )
     # One previous log is enough for restart diagnosis; search evidence has its
     # own retention policy. Never truncate the log of a live worker.
-    log = session / "worker.log"
     if log.exists():
+        with BoundedOutput(log):
+            pass  # Also cap a log inherited from an older release.
         log.replace(session / "worker.previous.log")
-    with log.open("w") as stream:
-        os.fchmod(stream.fileno(), 0o600)
-        child = subprocess.Popen(
-            command,
-            stdin=subprocess.DEVNULL,
-            stdout=stream,
-            stderr=subprocess.STDOUT,
-            start_new_session=True,
-            env=dict(os.environ, PYTHONUNBUFFERED="1"),
-        )
+    child = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True,
+        env=dict(os.environ, PYTHONUNBUFFERED="1"),
+    )
     try:
         process = psutil.Process(child.pid)
         write_json(
@@ -167,6 +180,7 @@ def stop(session):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--session", type=Path, default=Path.home() / ".local/state/planet-nine")
+    parser.add_argument("--details", action="store_true", help="include recent log output")
     parser.add_argument("action", choices=("start", "status", "stop"))
     parser.add_argument("worker_arguments", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
@@ -184,7 +198,7 @@ def main(argv=None):
             elif args.action == "stop":
                 result = stop(session)
             else:
-                result = status(session)
+                result = status(session, args.details)
         print(json.dumps(result, indent=2))
         return int(args.action == "start" and result["state"] != "running")
     except (OSError, RuntimeError, ValueError, psutil.Error) as error:

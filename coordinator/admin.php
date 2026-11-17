@@ -234,7 +234,7 @@ if ($action === "init") {
             foreach (
                 query(
                     $db,
-                    "SELECT task_id,worker_id,digest,result FROM results WHERE status='pending'",
+                    "SELECT id,submitted,task_id,worker_id,digest,result FROM results WHERE status='pending' ORDER BY submitted,id",
                     [],
                 )->fetchAll(PDO::FETCH_ASSOC)
                 as $row
@@ -244,6 +244,8 @@ if ($action === "init") {
                     "task_id" => $row["task_id"],
                     "worker_id" => $row["worker_id"],
                     "submission_digest" => $row["digest"],
+                    "submitted" => (int) $row["submitted"],
+                    "result_id" => (int) $row["id"],
                     "result_json" => $row["result"],
                 ],
                 JSON_UNESCAPED_SLASHES,

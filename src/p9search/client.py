@@ -16,6 +16,7 @@ class CoordinatorError(RuntimeError):
     def __init__(self, status, message):
         super().__init__(f"Coordinator {status}: {message}")
         self.status = status
+        self.message = message
 
 
 class Client:

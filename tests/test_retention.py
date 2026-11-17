@@ -204,3 +204,45 @@ def test_malformed_prune_record_does_not_move_a_result(tmp_path):
     with pytest.raises(ValueError, match="prune record"):
         retention.maintain(tmp_path)
     assert job.exists() and list(job.rglob("*.npy"))
+
+
+def test_interrupted_cache_cleanup_preserves_user_files_and_unacknowledged_results(tmp_path):
+    job = completed_job(tmp_path, acknowledged=False)
+    retention.discard_interrupted(job)
+    assert (job / "result.json").exists() and not list(job.rglob("*.npy"))
+    job = completed_job(tmp_path, number=1, acknowledged=False)
+    (job / "result.json").unlink()
+    (job / "notes.txt").write_text("keep")
+    retention.discard_interrupted(job)
+    assert not list(job.rglob("*.npy"))
+    assert (job / "notes.txt").read_text() == "keep"
+    assert (job / "task.json").exists()
+
+
+def test_interrupted_cleanup_resumes_after_unlink_and_bounds_repeated_failures(
+    tmp_path, monkeypatch
+):
+    job = completed_job(tmp_path, acknowledged=False)
+    (job / "result.json").unlink()
+    original = retention.os.unlink
+    calls = 0
+
+    def interrupt(*args, **kwargs):
+        nonlocal calls
+        original(*args, **kwargs)
+        calls += 1
+        if calls == 1:
+            raise OSError("power interruption")
+
+    with monkeypatch.context() as context:
+        context.setattr(retention.os, "unlink", interrupt)
+        with pytest.raises(OSError, match="power interruption"):
+            retention.discard_interrupted(job)
+    retention.maintain(tmp_path)
+    assert not job.exists()
+    for number in range(20):
+        job = completed_job(tmp_path, number, acknowledged=False, payload=50000)
+        (job / "result.json").unlink()
+        retention.discard_interrupted(job)
+        assert not job.exists()
+    assert DiskBudget(tmp_path, 2**30, 0).used() < 1024

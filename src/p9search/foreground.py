@@ -21,8 +21,8 @@ class QualityRejected(RuntimeError):
         self.fraction = fraction
 
 
-def fit(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False):
-    geom, meta = sector.geom, sector.meta
+def screen(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False):
+    geom = sector.geom
     with np.load(sector.directory / "stars.npz") as archive:
         stars = dict(archive)
     raw = (
@@ -77,6 +77,30 @@ def fit(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False)
     if fraction > 0.02:
         raise QualityRejected(fraction)
     del scene
+    return {
+        "design": design,
+        "weights": (u, v),
+        "stars": stars,
+        "quality": quality,
+        "masked_fraction": fraction,
+    }
+
+
+def fit(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False, screened=None):
+    if screened is None:
+        screened = screen(sector, raw_override, fixed_weights, empirical_stars=empirical_stars)
+    elif raw_override is not None or fixed_weights is not None:
+        raise ValueError("Preflight quality belongs only to the unchanged baseline")
+    geom, meta = sector.geom, sector.meta
+    raw = (
+        np.load(sector.directory / "raw.npy", mmap_mode="r")
+        if raw_override is None
+        else raw_override
+    )
+    design, stars = screened["design"], screened["stars"]
+    u, v = screened["weights"]
+    quality, fraction = screened["quality"], screened["masked_fraction"]
+    mask = quality["mask"]
     columns, _ = stellar_columns(
         stars["xy"], stars["tmag"], meta, raw.shape[1:], magnitude_limit=15.0, radius=6
     )

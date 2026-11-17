@@ -287,10 +287,17 @@ def maintain(root, *, keep_results=32, keep_data=False, keep_evidence=False, act
     if type(keep_results) is not int or keep_results < 1:
         raise ValueError("Keep at least one compact result")
     root = Path(root).resolve()
-    if not (root / JOURNAL).exists() and not any(root.glob("*/submission.json")):
+    if (
+        not (root / JOURNAL).exists()
+        and not any(root.glob("*/submission.json"))
+        and not any(root.glob("*/interrupted.json"))
+    ):
         return
     with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
         finish_prune(root)
+        for marker in root.glob("*/interrupted.json"):
+            if marker.parent.name != active_task:
+                discard_interrupted(marker.parent)
         history = []
         for directory in sorted(root.iterdir()):
             if (
@@ -349,3 +356,83 @@ def maintain(root, *, keep_results=32, keep_data=False, keep_evidence=False, act
                 total -= path.stat().st_size
                 path.unlink()
             sync_directory(receipts)
+
+
+def discard_interrupted(directory):
+    """Discard only generated, reproducible files after a routine interruption.
+
+    The caller has stopped the child and released its lease. A marker makes
+    cleanup restartable; any completed result or user-added file is preserved.
+    """
+    directory = Path(directory).absolute()
+    if directory.is_symlink() or directory.resolve() != directory:
+        raise ValueError("Interrupted directory is redirected")
+    if (directory / "result.json").exists():
+        from .evidence import pack
+
+        pack(directory, load_bounded(directory / "result.json"))
+        release_pixels(directory)
+        return  # Retain the exact unacknowledged result and compact evidence.
+    spec = validate_task(load_bounded(directory / "task.json"))
+    if directory.name != spec["task_id"]:
+        raise ValueError("Interrupted task identity differs")
+    marker = directory / "interrupted.json"
+    binding = {
+        "task_id": spec["task_id"],
+        "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
+    }
+    if marker.exists():
+        if load_bounded(marker) != binding:
+            raise ValueError("Interrupted cleanup identity differs")
+    else:
+        write_json(marker, binding)
+    names = generated_names(
+        spec, {"artifacts": {"launch.json", "interrupted.json", "baseline.json"}}
+    )
+    names.update({"field.part", "selector_metric_certificate.json", "selector_failure.json"})
+    names.update(f"selector_search_{i:03d}.json" for i in range(3 + len(spec["injections"])))
+    for label in (
+        "physical",
+        "reversed",
+        "negative",
+        *(f"injection-{i}" for i in range(len(spec["injections"]))),
+    ):
+        names.update(
+            f"{label}-{suffix}.json" for suffix in ("search", "proposals", "candidates", "matching")
+        )
+    for sid in spec["sectors"]:
+        base = f"data/s{sid:04d}/"
+        for name in ("raw", "error"):
+            names.update(base + name + suffix for suffix in (".npy", ".partial.npy"))
+        for row in range(0, 140, 4):
+            names.update(
+                base + f"strips/{row:03d}-{name}{suffix}"
+                for name in ("raw", "error", "native")
+                for suffix in (".npy", ".partial.npy")
+            )
+    names.update(name + ".tmp" for name in list(names) if name.endswith(".json"))
+    inventory = files(directory)
+    # No checksumming of bulk data just to remove it. Bind each unlink to the
+    # observed ordinary inode, with no symlink traversal through parent paths.
+    for relative, original in inventory.items():
+        if relative not in names or not relative.endswith((".npy", ".npz", ".zip", ".part")):
+            continue
+        with parent(directory, relative) as (descriptor, name):
+            observed = os.stat(name, dir_fd=descriptor, follow_symlinks=False)
+            if not stat.S_ISREG(observed.st_mode) or identity(observed) != identity(original):
+                raise ValueError("Interrupted cache changed during cleanup")
+            os.unlink(name, dir_fd=descriptor)
+    inventory = files(directory)
+    if not inventory.keys() <= names:
+        return
+    root = directory.parent
+    write_json(
+        root / JOURNAL,
+        {
+            "task_id": directory.name,
+            "directory": identity(directory.lstat())[:2],
+            "files": {name: sha256(directory / name) for name in inventory},
+        },
+    )
+    sync_directory(root)
+    finish_prune(root)

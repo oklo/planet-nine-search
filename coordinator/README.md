@@ -20,8 +20,8 @@ Brown reference CSV; pass its output as `--prior`. Review geometry, motion masks
 and injection choices before enqueueing. Workers allow bundle downloads only
 from `https://oklo.org` unless given another trusted `--bundle-origin`.
 
-Registration creates a pending worker. Approval allows one active lease, one
-unreviewed result, and at most eight new claims per day by default (operator
+Registration creates a pending worker. Approval allows one active lease, at most two
+unreviewed results, and at most eight new claims per day by default (operator
 configurable from 1 to 96). Leases renew for at most
 six hours. Unreviewed results expire after 24 hours; the task returns to the
 queue and the worker needs reapproval. Three failed or expired leases also
@@ -109,3 +109,9 @@ controls. No credentials or accepted results are served through the public API.
 Tests use disposable databases and concurrent workers. On macOS without PHP,
 use the cached `php:8.2-cli` image:
 `P9_TEST_DOCKER=1 pytest tests/test_coordinator.py --basetemp .pytest_cache/php`.
+
+A worker with one pending result may claim its next field; at two, it retries
+after 60 seconds. `admin.php results` exports pending submissions oldest first, ordered by
+integer `submitted` (Unix seconds) and `result_id`. Review services must handle
+this bounded backlog before enabling the coordinator update. Drain old-source
+reviews before upgrading a pinned replay environment.
