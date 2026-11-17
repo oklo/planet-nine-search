@@ -16,6 +16,7 @@ from .storage import (
     DiskBudget,
     DiskCapacityError,
     canonical,
+    capacity_error,
     load_bounded,
     read_json,
     sha256,
@@ -174,4 +175,9 @@ def execute(args):
         return 69
     except Exception as error:
         print(f"p9: {error}", file=sys.stderr)
-        return 69 if args.command == "run" and transport_error(error) else 1
+        if args.command == "run":
+            if capacity_error(error):
+                return 73
+            if transport_error(error):
+                return 69
+        return 1

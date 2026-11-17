@@ -15,7 +15,15 @@ from .diagnostics import BoundedOutput, State
 from .evidence import pack
 from .network import TransportError
 from .retention import discard_interrupted, maintain, release_pixels
-from .storage import DirectoryLock, DiskCapacityError, canonical, read_json, sha256, write_json
+from .storage import (
+    DirectoryLock,
+    DiskCapacityError,
+    canonical,
+    capacity_error,
+    read_json,
+    sha256,
+    write_json,
+)
 from .tasks import PROTOCOL, validate_task
 
 
@@ -251,7 +259,10 @@ def _work(args, budget, credentials, state):
                         stop_child(child)
                     raise
         except BaseException as error:
-            recoverable = isinstance(error, (DiskCapacityError, TransportError))
+            recoverable = capacity_error(error) or isinstance(error, TransportError)
+            if args.continuous and recoverable and not keep_data:
+                with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
+                    discard_interrupted(folder)
             body = client.lease_body(
                 failed=not (recoverable or isinstance(error, KeyboardInterrupt)),
                 reason=str(error)[:1024],
@@ -272,10 +283,7 @@ def _work(args, budget, credentials, state):
                 pass  # A stopped worker's unreachable lease will expire.
             if not (args.continuous and recoverable):
                 raise
-            if not keep_data:
-                with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
-                    discard_interrupted(folder)
-            wait = 300 if isinstance(error, DiskCapacityError) else 60
+            wait = 300 if capacity_error(error) else 60
             state("capacity_wait" if wait == 300 else "transport_wait", str(error))
             time.sleep(wait)
             continue

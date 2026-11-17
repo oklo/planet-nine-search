@@ -1,5 +1,6 @@
 """Atomic small records and explicit bounds on a worker's own files."""
 
+import errno
 import hashlib
 import json
 import math
@@ -12,6 +13,12 @@ GIB = 2**30
 
 class DiskCapacityError(RuntimeError):
     """The work allocation or volume reserve currently leaves insufficient space."""
+
+
+def capacity_error(error):
+    return isinstance(error, DiskCapacityError) or (
+        isinstance(error, OSError) and error.errno in (errno.ENOSPC, errno.EDQUOT)
+    )
 
 
 def canonical(value):

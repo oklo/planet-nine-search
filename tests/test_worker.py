@@ -382,7 +382,11 @@ def test_mid_search_recovery_is_limited_to_capacity_and_transport(
                     "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
                 }
             if action == "release":
+                if recoverable:
+                    assert not list(tmp_path.rglob("*.npy"))
                 releases.append(body)
+                if recoverable and len(releases) == 1:
+                    raise requests.Timeout("release acknowledgement unavailable")
                 return {"released": True}
             pytest.fail("An interrupted search must never submit")
 
@@ -404,7 +408,7 @@ def test_mid_search_recovery_is_limited_to_capacity_and_transport(
         worker.work(args, DiskBudget(tmp_path, 2**30, 0))
     assert actions.count("register") == 1
     assert releases[0]["failed"] is (not recoverable)
-    assert waits == ([delay] if recoverable else [])
+    assert waits == ([60, delay] if recoverable else [])
     assert capsys.readouterr().out == ""
     if not recoverable:
         assert list(tmp_path.rglob("*.npy"))
@@ -441,3 +445,20 @@ def test_approval_wait_preserves_identity_and_retries_quietly(tmp_path, monkeypa
     assert calls.count("register") == 1 and len(set(tokens)) == 1
     assert waits == [300, 300, 300]
     assert not capsys.readouterr().out
+
+
+@pytest.mark.parametrize("number,expected", [(28, 73), (13, 1)])
+def test_actual_disk_write_errors_are_classified_without_retrying_permissions(
+    tmp_path, monkeypatch, number, expected
+):
+    import errno
+    from p9search import cli
+
+    # ENOSPC and EACCES have these portable POSIX values on supported platforms.
+    error_number = errno.ENOSPC if number == 28 else errno.EACCES
+
+    def fail(*args, **kwargs):
+        raise OSError(error_number, "test disk failure")
+
+    monkeypatch.setattr(cli.DiskBudget, "check", fail)
+    assert cli.main(["run", str(tmp_path / "task.json"), "--directory", str(tmp_path)]) == expected
