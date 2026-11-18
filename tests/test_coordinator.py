@@ -912,3 +912,29 @@ def test_review_overlap_is_serialized_bounded_and_exports_oldest_first(coordinat
         "UPDATE results SET status='accepted',verified=1 WHERE task_id=?", [first["task_id"]]
     )
     assert claim(coordinator, pair).json()["task"] is not None
+
+
+def test_empty_supply_is_explicit_and_same_worker_can_claim_after_replenishment(coordinator):
+    pair = worker(coordinator)
+    status = requests.get(coordinator[0], params={"action": "status"}, timeout=10)
+    assert status.status_code == 200
+    assert status.json()["tasks"]["pending"] == 0
+    assert status.json()["tasks"]["leased"] == 0
+    reply = claim(coordinator, pair)
+    assert reply.json() == {
+        "task": None,
+        "retry_after": 300,
+        "reason": "Waiting for coordinator replenishment",
+    }
+    task = seed(coordinator, 999)
+    assert claim(coordinator, pair).json()["task_id"] == task["task_id"]
+    assert coordinator[1]("SELECT COUNT(*) FROM workers")[0][0] == 1
+
+
+def test_insufficient_worker_allocation_has_a_distinct_wait_reason(coordinator):
+    seed(coordinator, 1000)
+    assert claim(coordinator, worker(coordinator), budget=1).json() == {
+        "task": None,
+        "retry_after": 300,
+        "reason": "No ready field fits this worker's disk allocation",
+    }

@@ -10,12 +10,13 @@ function dispatch(PDO $db, string $action, array $body): array
     // Expiry survives a subsequent rejected request.
     transaction($db, fn() => expire_work($db));
     if ($action === "status") {
+        $counts = array_fill_keys(["pending", "leased", "submitted", "reviewed", "withdrawn", "legacy"], 0);
+        foreach (query($db, "SELECT state,COUNT(*) FROM tasks GROUP BY state")->fetchAll(PDO::FETCH_KEY_PAIR) as $state => $count) {
+            $counts[$state] = (int) $count;
+        }
         return [
             "protocol" => PROTOCOL,
-            "tasks" => query(
-                $db,
-                "SELECT state,COUNT(*) FROM tasks GROUP BY state",
-            )->fetchAll(PDO::FETCH_KEY_PAIR),
+            "tasks" => $counts,
             "expired_leases" => 0,
             "registration" => "operator approval required",
             "result_policy" => "Master acceptance required: local checks or statistical audits; candidates receive full replay.",
@@ -130,7 +131,7 @@ function dispatch(PDO $db, string $action, array $body): array
                         "SELECT COUNT(*) FROM tasks WHERE state='pending'",
                     )->fetchColumn() <= $reserve
                 ) {
-                    return ["task" => null, "retry_after" => 300];
+                    return ["task" => null, "retry_after" => 300, "reason" => "Waiting for coordinator replenishment"];
                 }
                 $job = query(
                     $db,
@@ -138,7 +139,7 @@ function dispatch(PDO $db, string $action, array $body): array
                     [$budget],
                 )->fetch(PDO::FETCH_ASSOC);
                 if (!$job) {
-                    return ["task" => null, "retry_after" => 300];
+                    return ["task" => null, "retry_after" => 300, "reason" => "No ready field fits this worker's disk allocation"];
                 }
                 query(
                     $db,

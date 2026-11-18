@@ -184,12 +184,15 @@ def test_continuous_worker_reuses_space_across_download_search_submission_cycles
     transient_claim = False
     transient_submit = False
     completed_child = None
+    shortages = set()
+    registrations = []
 
     class Coordinator:
         def __init__(self, *args):
             self.credentials = {}
 
         def register(self, name):
+            registrations.append(name)
             self.credentials["worker_id"] = "test-worker"
 
         def save(self):
@@ -207,6 +210,13 @@ def test_continuous_worker_reuses_space_across_download_search_submission_cycles
             if action == "claim":
                 if len(submitted) == count:
                     return {"task": None, "retry_after": 300}
+                if len(submitted) in (0, 7) and len(submitted) not in shortages:
+                    shortages.add(len(submitted))
+                    return {
+                        "task": None,
+                        "reason": "Waiting for coordinator replenishment",
+                        "retry_after": 300,
+                    }
                 if len(submitted) == 3 and not transient_claim:
                     transient_claim = True
                     raise requests.Timeout("temporary claim interruption")
@@ -266,7 +276,9 @@ def test_continuous_worker_reuses_space_across_download_search_submission_cycles
     assert len(list(tmp_path.glob("receipts/*.json.gz"))) == 3
     assert not completed_child.exists()
     assert budget.used() < 60000
-    assert waits == [60, 60, 300]
+    assert len(registrations) == 1
+    assert shortages == {0, 7}
+    assert waits == [300, 60, 60, 300, 300]
 
 
 def test_continuous_capacity_pause_recovers_without_registering_another_worker(
