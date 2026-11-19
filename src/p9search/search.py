@@ -160,6 +160,8 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
         screened.append(quality)
         gc.collect()
         runtime.release()
+    full, grid = grids(sectors)
+    check_prior_geometry(policy["prior"], frame, grid)
     prepared = []
     for sector, quality in zip(sectors, screened, strict=True):
         progress("fit foreground", sector=int(sector.meta["sector"]))
@@ -169,8 +171,6 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
         gc.collect()
         runtime.release()
     del screened, quality
-    full, grid = grids(sectors)
-    check_prior_geometry(policy["prior"], frame, grid)
     local = {s["inverse_distance"]: s["local_angular"] for s in full}
     with np.load(data / "motion_masks.npz") as masks:
         specs = restrict_specs(full, [masks[f"slice_{i:02d}"] for i in range(len(full))])
