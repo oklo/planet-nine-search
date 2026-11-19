@@ -1,11 +1,12 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 
 from p9search.calibration import has_source, response_admitted, unchanged_pixels
-from p9search.policy import default_policy, screen_rows, validate_policy
+from p9search.policy import check_prior_geometry, default_policy, screen_rows, validate_policy
 from p9search.science.physical_prior import screen
 
 
@@ -63,3 +64,14 @@ def test_reference_propagation_matches_circular_two_body_orbit():
     actual_p, actual_v = propagate_batch(p, v, [600.0])
     np.testing.assert_allclose(actual_p[0], expected_p, atol=1e-8, rtol=0)
     np.testing.assert_allclose(actual_v[0], expected_v, atol=1e-12, rtol=0)
+
+
+def test_intel_wcs_roundoff_does_not_reject_same_lattice():
+    frame = SimpleNamespace(center=[113.39, 46.18], reference_time=2949.742341461)
+    prior = dict(reference_frame_center=frame.center, epoch_jd=2459949.742341461,
+                 angular_step=9.95256807138276e-8, inverse_step=(1/200 - 1/1500)/16)
+    grid = dict(distance_au=[200, 1500], inverse_distance_slices=17,
+                joint_angular_step_rad_per_day=9.95256806840993e-8)
+    check_prior_geometry(prior, frame, grid)
+    with pytest.raises(ValueError, match="geometry or lattice"):
+        check_prior_geometry(prior, frame, dict(grid, joint_angular_step_rad_per_day=1e-7))
