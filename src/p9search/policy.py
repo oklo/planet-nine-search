@@ -94,7 +94,9 @@ def check_prior_geometry(context, frame, grid):
         )
         or not math.isclose(
             # The finite-difference WCS Jacobian varies slightly across CPU builds.
-            context["angular_step"], grid["joint_angular_step_rad_per_day"], rel_tol=1e-8
+            context["angular_step"],
+            grid["joint_angular_step_rad_per_day"],
+            rel_tol=1e-8,
         )
         or not math.isclose(context["inverse_step"], inverse, rel_tol=1e-10)
     ):

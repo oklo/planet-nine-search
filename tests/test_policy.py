@@ -68,10 +68,17 @@ def test_reference_propagation_matches_circular_two_body_orbit():
 
 def test_intel_wcs_roundoff_does_not_reject_same_lattice():
     frame = SimpleNamespace(center=[113.39, 46.18], reference_time=2949.742341461)
-    prior = dict(reference_frame_center=frame.center, epoch_jd=2459949.742341461,
-                 angular_step=9.95256807138276e-8, inverse_step=(1/200 - 1/1500)/16)
-    grid = dict(distance_au=[200, 1500], inverse_distance_slices=17,
-                joint_angular_step_rad_per_day=9.95256806840993e-8)
+    prior = dict(
+        reference_frame_center=frame.center,
+        epoch_jd=2459949.742341461,
+        angular_step=9.95256807138276e-8,
+        inverse_step=(1 / 200 - 1 / 1500) / 16,
+    )
+    grid = dict(
+        distance_au=[200, 1500],
+        inverse_distance_slices=17,
+        joint_angular_step_rad_per_day=9.95256806840993e-8,
+    )
     check_prior_geometry(prior, frame, grid)
     with pytest.raises(ValueError, match="geometry or lattice"):
         check_prior_geometry(prior, frame, dict(grid, joint_angular_step_rad_per_day=1e-7))
