@@ -11,7 +11,7 @@ const STATES = {
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
-  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists. Results use trusted local checks or statistical volunteer audits; field details identify the review method.',
+  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
 };
