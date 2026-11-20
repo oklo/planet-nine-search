@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=9">
-  <script src="map.js?v=13" defer></script>
+  <link rel="stylesheet" href="map.css?v=10">
+  <script src="map.js?v=14" defer></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -60,7 +60,7 @@
       <div class="map-frame">
         <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map" aria-describedby="map-help">
           <title>planet nine search fields</title>
-          <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons or field selector to explore.</desc>
+          <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons and select a field on the map to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
             <ellipse cx="500" cy="250" rx="500" ry="250" fill="var(--map-surface)"/>
@@ -91,8 +91,6 @@
       <section aria-labelledby="field-heading">
         <div class="section-heading">
           <h2 id="field-heading">Field details</h2>
-          <label class="screen-reader-text" for="field-select">Choose a field</label>
-          <select id="field-select"><option value="">Choose a field…</option></select>
         </div>
         <div id="field-details" aria-live="polite">
           <p class="muted">Zoom into a group of fields, then click an outline to inspect its coverage.</p>

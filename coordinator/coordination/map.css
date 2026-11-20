@@ -76,7 +76,6 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .lower-grid > * { min-width: 0; }
 .lower-grid p { margin: .8rem 0; }
 .section-heading { flex-wrap: wrap; }
-#field-select { max-width: 100%; }
 .field-title { font-size: 1.1rem; margin: 1rem 0 .3rem; }
 .field-state { font: .78rem var(--sans); }
 .field-meta { font: .78rem/1.7 var(--sans); color: var(--text-soft); }

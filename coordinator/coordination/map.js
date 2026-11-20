@@ -241,13 +241,12 @@ function emphasizeField() {
 function selectField(code, zoom = true) {
   selected = code || null;
   selectedSector = null;
-  $('field-select').value = code || '';
   $('clear-selection').hidden = !selected;
   emphasizeField();
   const panel = $('field-details');
   panel.replaceChildren();
   if (!selected) {
-    textNode('p', 'Select a field on the map or use the field menu to inspect its sectors.', panel, 'muted');
+    textNode('p', 'Select a field on the map to inspect its sectors.', panel, 'muted');
     setView(view);
     return;
   }
@@ -367,7 +366,6 @@ sky.addEventListener('keydown', event => {
 });
 $('zoom-in').addEventListener('click', () => zoomAt(1.7));
 $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.7));
-$('field-select').addEventListener('change', event => selectField(event.target.value));
 $('clear-selection').addEventListener('click', () => selectField(null, false));
 for (const button of document.querySelectorAll('[data-region]')) {
   button.addEventListener('click', () => {
@@ -436,9 +434,6 @@ async function initialize() {
       swatch.style.setProperty('--state-color', info.color);
       swatch.setAttribute('aria-hidden', 'true');
       item.append(`${info.label} (${data.field_counts[state] || 0})`);
-    }
-    for (const field of [...data.fields].sort((a, b) => a.code.localeCompare(b.code, undefined, {numeric: true}))) {
-      textNode('option', `${field.code} · ${STATES[field.state].label}`, $('field-select')).value = field.code;
     }
     $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5.`;
     drawMap();
