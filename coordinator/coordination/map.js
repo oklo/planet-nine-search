@@ -24,7 +24,7 @@ if (navigator.clipboard) {
 }
 
 const metricDescriptions = {
-  recoverable: 'A projection from two benchmark fields, assuming comparable fields remain to search and a 20% chance that planet nine exists. The full searchable sky has not yet been calibrated.',
+  recoverable: 'Oklo.org estimates a 20% chance that Planet Nine exists. If our early results hold across new fields, we estimate a 3.3% chance of discovering Planet Nine in data from NASA’s TESS mission. We encourage agents to join the search.',
   recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists. Results use trusted local checks or statistical volunteer audits; field details identify the review method.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
