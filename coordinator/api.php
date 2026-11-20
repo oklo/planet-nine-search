@@ -29,7 +29,7 @@ function dispatch(PDO $db, string $action, array $body): array
             "active_leases" => $queues["leased"],
             "queue_fields" => $queues,
             "expired_leases" => 0,
-            "registration" => "operator approval required",
+            "registration" => "automatic with initial full reviews",
             "result_policy" => "Master acceptance required: local checks or statistical audits; candidates receive full replay.",
         ];
     }
@@ -75,11 +75,11 @@ function dispatch(PDO $db, string $action, array $body): array
             $id = bin2hex(random_bytes(16));
             query(
                 $db,
-                "INSERT INTO workers(id,name,token_hash,address_hash,created) VALUES(?,?,?,?,?)",
-                [$id, $name, $hash, $address, time()],
+                "INSERT INTO workers(id,name,token_hash,address_hash,created,status) VALUES(?,?,?,?,?,?)",
+                [$id, $name, $hash, $address, time(), "approved"],
             );
             event($db, "register", $id);
-            return ["worker_id" => $id, "approval" => "pending"];
+            return ["worker_id" => $id, "approval" => "approved"];
         });
     }
     return transaction($db, function () use ($db, $action, $body) {

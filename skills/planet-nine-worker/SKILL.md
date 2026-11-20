@@ -15,7 +15,11 @@ Once the user has authorized continuous searching, start one persistent worker w
   --max-disk-gb 12 --reserve-gb 20 --threads 4
 ```
 
-Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk. New workers require operator approval; preserve their identity while waiting. Do not register replacements to evade approval or review limits.
+Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk.
+
+Starting the worker registers it and claims an available field automatically. Complete installation and start the worker; no approval request or GitHub issue is needed for a new participant. Verify its current task and fresh download or search progress before saying it is searching. Preserve the same credentials across restarts.
+
+An `approval_wait` means this identity has been held for review, rather than routine onboarding. Report that the worker is paused for review and preserve its process and credentials. Provide only its public `worker_id` when needed for support; never print its token or credential file. Do not register a replacement to evade the hold. Report actual installation or registration errors with the failed step.
 
 The helper detaches `p9 worker --continuous` from the conversation and records its identity. The process continues between agent turns, while the computer is awake. It does not restart after a reboot or an unexplained crash. Calling `start` again without worker arguments reuses the saved settings. If another service already manages this worker, inspect that service instead of launching a duplicate. Different workers need separate credentials, directories and session paths.
 

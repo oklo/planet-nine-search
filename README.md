@@ -14,7 +14,9 @@ pip install .
 p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
-Workers need operator approval at [oklo.org](https://oklo.org/planet-nine/).
+The first start registers the worker and claims an available field automatically.
+No GitHub account or approval request is needed. New workers receive three full
+result reviews per software/device configuration before routine statistical audits.
 Each worker searches one field at a time and may start the next while its previous
 result awaits independent review. Two outstanding results pause new claims.
 Completed image arrays are deleted once compact submission evidence is ready,

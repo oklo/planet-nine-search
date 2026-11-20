@@ -177,8 +177,9 @@ def worker(service, approved=True):
     token, lease = secrets.token_hex(32), secrets.token_hex(32)
     response = call(service, "register", {"name": "integration test", "token": token})
     assert response.status_code == 200, response.text
-    if approved:
-        assert service[2]("approve", response.json()["worker_id"]).returncode == 0
+    assert response.json()["approval"] == "approved"
+    if not approved:
+        service[1]("UPDATE workers SET status='pending' WHERE id=?", [response.json()["worker_id"]])
     return token, lease
 
 
@@ -446,7 +447,7 @@ def submission(service, pair):
     return body
 
 
-def test_registration_requires_approval_and_one_worker_cannot_drain_queue(coordinator):
+def test_automatic_admission_preserves_holds_and_cannot_drain_queue(coordinator):
     for i in range(5):
         seed(coordinator, i + 1)
     pending = worker(coordinator, approved=False)
@@ -972,3 +973,32 @@ def test_public_queue_lists_match_states_without_private_data(coordinator):
             )
     assert "private-lease-hash" not in response.text
     assert "not for public status" not in response.text
+
+
+@pytest.mark.parametrize("held_status", ["pending", "revoked"])
+def test_registration_retry_does_not_release_an_existing_hold(coordinator, held_status):
+    token = secrets.token_hex(32)
+    body = {"name": "new participant", "token": token}
+    first = call(coordinator, "register", body).json()
+    assert first["approval"] == "approved"
+    coordinator[1](
+        "UPDATE workers SET status=?,strikes=3 WHERE id=?", [held_status, first["worker_id"]]
+    )
+    retry = call(coordinator, "register", body)
+    assert retry.status_code == 200
+    assert retry.json() == {"worker_id": first["worker_id"], "approval": held_status}
+    assert claim(coordinator, (token, secrets.token_hex(32))).status_code == 403
+    assert coordinator[1]("SELECT COUNT(*),strikes FROM workers")[0] == (1, 3)
+
+
+def test_automatic_registration_retains_per_address_limit_and_idempotency(coordinator):
+    bodies = [{"name": f"participant {i}", "token": secrets.token_hex(32)} for i in range(11)]
+    identities = []
+    for body in bodies[:10]:
+        response = call(coordinator, "register", body)
+        assert response.status_code == 200
+        assert response.json()["approval"] == "approved"
+        identities.append(response.json()["worker_id"])
+    assert call(coordinator, "register", bodies[10]).status_code == 429
+    assert call(coordinator, "register", bodies[0]).json()["worker_id"] == identities[0]
+    assert coordinator[1]("SELECT COUNT(*) FROM workers")[0][0] == 10
