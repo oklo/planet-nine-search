@@ -450,12 +450,14 @@ def test_approval_wait_preserves_identity_and_retries_quietly(tmp_path, monkeypa
             raise KeyboardInterrupt
 
     monkeypatch.setattr(worker, "Client", Coordinator)
+    times = iter([0, 599, 600])
+    monkeypatch.setattr(worker.time, "monotonic", lambda: next(times))
     monkeypatch.setattr(worker.time, "sleep", waits.append)
     args = parser().parse_args(["worker", "--continuous", "--directory", str(tmp_path)])
     with pytest.raises(KeyboardInterrupt):
         worker.work(args, DiskBudget(tmp_path, 2**30, 0))
     assert calls.count("register") == 1 and len(set(tokens)) == 1
-    assert waits == [300, 300, 300]
+    assert waits == [15, 15, 300]
     assert not capsys.readouterr().out
 
 
