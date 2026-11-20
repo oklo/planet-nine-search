@@ -125,3 +125,5 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
   .regions button { font-size: .72rem; padding: .4rem .5rem; }
   .map-heading .small { font-size: .68rem; }
 }
+
+#worker-prompt { margin: .75rem 0; padding: .65rem 1rem; border-left: 2px solid var(--accent); background: var(--code-bg); overflow-wrap: anywhere; }
