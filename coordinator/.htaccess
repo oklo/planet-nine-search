@@ -1,5 +1,7 @@
 Options -Indexes
 DirectoryIndex index.html
+RewriteEngine On
+RewriteRule ^(?:index\.html)?$ /planet-nine/coordination/ [R=302,L]
 SetEnvIf Authorization "(.+)" HTTP_AUTHORIZATION=$1
 <FilesMatch "^(common|admin|task|review)\.php$">
     Require all denied
