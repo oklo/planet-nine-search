@@ -405,7 +405,7 @@ async function updateQueue() {
       for (const item of status.queue_fields[state]) {
         const field = fieldsByTask.get(item.task_id);
         const parts = [field?.code, item.label];
-        if (state === 'leased' && item.started) parts.push('Leased ' + new Date(item.started * 1000).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
+        if (state === 'leased' && item.started) parts.push('Leased ' + new Date(item.started * 1000).toLocaleString([], {year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}));
         textNode('li', parts.filter(Boolean).join(' · '), list);
       }
       if (!list.childElementCount) textNode('li', 'None', list, 'muted');
