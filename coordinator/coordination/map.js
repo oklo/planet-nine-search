@@ -10,19 +10,6 @@ const STATES = {
   queued: {label: 'Queued', color: 'var(--field-queued)', style: 'circle'},
 };
 const $ = id => document.getElementById(id);
-const copyPrompt = $('copy-worker-prompt');
-if (navigator.clipboard) {
-  copyPrompt.hidden = false;
-  copyPrompt.addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText($('worker-prompt').textContent);
-      $('copy-status').textContent = 'Copied.';
-    } catch {
-      $('copy-status').textContent = 'Select the prompt above and copy it.';
-    }
-  });
-}
-
 const metricDescriptions = {
   recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists. Results use trusted local checks or statistical volunteer audits; field details identify the review method.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',

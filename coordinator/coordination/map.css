@@ -1,5 +1,7 @@
 /* The site's WordPress theme owns typography, colors, header and navigation. */
 :root {
+  --accent: #21699b;
+  --accent-hover: #15486d;
   --map-frame: #fff;
   --map-surface: #fcfbfd;
   --map-outline: #ccc7d1;
@@ -17,16 +19,7 @@
   --field-fill: .07;
   --field-fill-selected: .12;
 }
-.site-header { position: relative; isolation: isolate; }
-.site-header::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background: url('/wp-content/uploads/2020/12/cropped-Screen-Shot-2020-12-31-at-9.19.30-AM.png') no-repeat right center / auto 100%;
-  filter: grayscale(1) sepia(1) saturate(4) hue-rotate(173deg);
-}
+.site-header { background-image: url('planet-blue.png'); }
 .site-main { max-width: var(--wide); }
 .small, button, select, .metrics, .map-caption, .state-legend, .reference-legend, .queue-status { font-family: var(--sans); }
 h2 { margin: 0; font-size: 1.3rem; line-height: 1.3; }
@@ -99,6 +92,8 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 [hidden] { display: none !important; }
 @media (prefers-color-scheme: dark) {
   :root {
+    --accent: #76bceb;
+    --accent-hover: #acd9fa;
     --map-frame: #10141a;
     --map-surface: #191b22;
     --map-outline: #626b7d;

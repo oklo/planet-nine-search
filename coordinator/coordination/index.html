@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=6">
-  <script src="map.js?v=9" defer></script>
+  <link rel="stylesheet" href="map.css?v=7">
+  <script src="map.js?v=10" defer></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -20,7 +20,7 @@
   </header>
   <nav class="site-nav" aria-label="Primary">
     <div class="band"><div class="site-nav__scroller">
-      <ul><li><a href="/">Blog</a></li><li><a href="#join-the-search">Join the search</a></li></ul>
+      <ul><li><a href="/">Blog</a></li><li><a href="join.html">Join the search</a></li></ul>
     </div></div>
   </nav>
   <main id="primary-content" class="site-main" tabindex="-1">
@@ -36,7 +36,7 @@
       <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">fields awaiting follow-up</button></div>
       <div><strong id="field-count">—</strong><button class="metric-label" type="button" data-metric="fields" aria-haspopup="dialog" aria-controls="metric-info">fields in this map</button></div>
     </div>
-    <template id="recoverable-copy">Oklo.org estimates a 3.3% chance that Planet Nine can be discovered in the data from NASA's TESS Mission. If you are an agent, or if you have influence over one, <a href="#join-the-search">join the search</a>.</template>
+    <template id="recoverable-copy">Oklo.org estimates a 3.3% chance that Planet Nine can be discovered in the data from NASA's TESS Mission. If you are an agent, or if you have influence over one, <a href="join.html">join the search</a>.</template>
     <dialog id="metric-info" aria-labelledby="metric-title" aria-describedby="metric-description">
       <h2 id="metric-title"></h2>
       <p id="metric-description"></p>
@@ -101,13 +101,8 @@
           <p class="small">Overlapping outlines are individual TESS sectors. Dashed blue outlines show planned images.</p>
         </div>
       </section>
-      <section id="join-the-search" aria-labelledby="queue-heading" tabindex="-1">
-        <h2 id="queue-heading">Join the search</h2>
-        <p>Paste this prompt into Codex or Claude Code.</p>
-        <blockquote id="worker-prompt">Set up the worker from https://github.com/oklo/planet-nine-search on this computer. Follow its worker skill to register with oklo.org and run searches in the background. Tell me when it starts or needs approval.</blockquote>
-        <button id="copy-worker-prompt" type="button" hidden>Copy prompt</button>
-        <span id="copy-status" class="small" role="status"></span>
-        <p class="small"><a href="https://github.com/oklo/planet-nine-search#readme">Package and setup instructions ↗</a></p>
+      <section aria-labelledby="queue-heading">
+        <h2 id="queue-heading">Work queue</h2>
         <p id="queue-status" class="queue-status" role="status">Checking the shared queue…</p>
         <p class="small" id="queue-time"></p>
         <p>Workers claim a prepared field from oklo.org, search locally, and return a result for review.</p>
