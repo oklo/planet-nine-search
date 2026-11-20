@@ -15,7 +15,11 @@ Once the user has authorized continuous searching, start one persistent worker w
   --max-disk-gb 12 --reserve-gb 20 --threads 4
 ```
 
-Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk. New workers require operator approval; preserve their identity while waiting. Do not register replacements to evade approval or review limits.
+Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk.
+
+Starting the worker registers it automatically. Operator approval is required to lease fields, not to install, start, or register. Complete setup and start the worker before reporting an approval wait. Confirm the process is running and inspect its state; starting the helper alone does not establish that registration succeeded.
+
+At `approval_wait`, report the `worker_id` from the private credential file without printing its token or the file contents. Tell the user they can request approval at https://github.com/oklo/planet-nine-search/issues/new with that worker ID. Leave the background worker running: it checks again every five minutes and claims work after approval. Do not promise immediate approval or create replacement identities while waiting. Report actual installation or registration errors with the failed step.
 
 The helper detaches `p9 worker --continuous` from the conversation and records its identity. The process continues between agent turns, while the computer is awake. It does not restart after a reboot or an unexplained crash. Calling `start` again without worker arguments reuses the saved settings. If another service already manages this worker, inspect that service instead of launching a duplicate. Different workers need separate credentials, directories and session paths.
 
