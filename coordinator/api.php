@@ -14,15 +14,20 @@ function dispatch(PDO $db, string $action, array $body): array
         foreach (query($db, "SELECT state,COUNT(*) FROM tasks GROUP BY state")->fetchAll(PDO::FETCH_KEY_PAIR) as $state => $count) {
             $counts[$state] = (int) $count;
         }
-        $leases = [];
-        foreach (query($db, "SELECT id,spec,started FROM tasks WHERE state='leased' AND expires>? ORDER BY started,id", [time()]) as $row) {
+        $queues = ["pending" => [], "leased" => [], "submitted" => []];
+        foreach (query($db, "SELECT id,spec,state,started FROM tasks WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
             $task = json_decode($row["spec"], true, 32, JSON_THROW_ON_ERROR);
-            $leases[] = ["task_id" => $row["id"], "label" => $task["label"], "started" => (int) $row["started"]];
+            $field = ["task_id" => $row["id"], "label" => $task["label"] ?? $row["id"]];
+            if ($row["state"] === "leased") {
+                $field["started"] = (int) $row["started"];
+            }
+            $queues[$row["state"]][] = $field;
         }
         return [
             "protocol" => PROTOCOL,
             "tasks" => $counts,
-            "active_leases" => $leases,
+            "active_leases" => $queues["leased"],
+            "queue_fields" => $queues,
             "expired_leases" => 0,
             "registration" => "operator approval required",
             "result_policy" => "Master acceptance required: local checks or statistical audits; candidates receive full replay.",

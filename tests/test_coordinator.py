@@ -938,3 +938,37 @@ def test_insufficient_worker_allocation_has_a_distinct_wait_reason(coordinator):
         "retry_after": 300,
         "reason": "No ready field fits this worker's disk allocation",
     }
+
+
+def test_public_queue_lists_match_states_without_private_data(coordinator):
+    now = int(time.time())
+    for number, state in enumerate(["pending", "leased", "submitted", "reviewed", "leased"], 1):
+        spec = seed(coordinator, number)
+        spec.update(label=f"Field {number}", private_example="not for public status")
+        coordinator[1](
+            "UPDATE tasks SET spec=?,state=?,started=?,expires=?,lease_hash=? WHERE id=?",
+            [
+                json.dumps(spec),
+                state,
+                now - 10,
+                now - 1 if number == 5 else now + 600,
+                "private-lease-hash",
+                spec["task_id"],
+            ],
+        )
+    response = requests.get(coordinator[0], params={"action": "status"}, timeout=10)
+    assert response.status_code == 200
+    payload = response.json()
+    queues = payload["queue_fields"]
+    assert {item["label"] for item in queues["pending"]} == {"Field 1", "Field 5"}
+    assert [item["label"] for item in queues["leased"]] == ["Field 2"]
+    assert [item["label"] for item in queues["submitted"]] == ["Field 3"]
+    assert payload["active_leases"] == queues["leased"]
+    for state, items in queues.items():
+        assert len(items) == payload["tasks"][state]
+        for item in items:
+            assert set(item) == (
+                {"task_id", "label", "started"} if state == "leased" else {"task_id", "label"}
+            )
+    assert "private-lease-hash" not in response.text
+    assert "not for public status" not in response.text

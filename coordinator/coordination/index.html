@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=11">
-  <script src="map.js?v=15" defer></script>
+  <link rel="stylesheet" href="map.css?v=12">
+  <script src="map.js?v=16" defer></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -85,7 +85,23 @@
         <span><i class="line ecliptic"></i>Ecliptic</span>
         <span class="density-key"><span>Purple: reference density</span><i class="density-ramp"></i><span>0–0.08% / deg²</span></span>
       </div>
-      <p id="queue-status" class="queue-status" role="status">Checking the shared queue…</p>
+    </section>
+    <section class="queue-panel" aria-label="Search queue">
+      <p id="queue-status" class="small" role="status">Checking the shared queue…</p>
+      <div id="queue-lists" hidden>
+        <section>
+          <h3 id="verification-heading">Awaiting verification</h3>
+          <ul id="verification-fields" class="queue-list" tabindex="0" aria-labelledby="verification-heading"></ul>
+        </section>
+        <section>
+          <h3 id="leases-heading">Active leases</h3>
+          <ul id="active-leases" class="queue-list" tabindex="0" aria-labelledby="leases-heading"></ul>
+        </section>
+        <section>
+          <h3 id="ready-heading">Ready to claim</h3>
+          <ul id="ready-fields" class="queue-list" tabindex="0" aria-labelledby="ready-heading"></ul>
+        </section>
+      </div>
     </section>
     <div class="lower-grid">
       <section id="field-panel" aria-labelledby="field-heading" hidden>
@@ -94,7 +110,6 @@
         </div>
         <div id="field-details" aria-live="polite"></div>
       </section>
-      <ul id="active-leases" class="small" aria-label="Current leases" hidden></ul>
     </div>
     <details class="map-notes">
       <summary>Reading the map</summary>

@@ -391,23 +391,36 @@ async function updateQueue() {
     const status = await response.json();
     if (!status.tasks || typeof status.tasks !== 'object') throw new Error('Invalid queue status');
     const count = name => Number.isInteger(Number(status.tasks[name] ?? 0)) && Number(status.tasks[name] ?? 0) >= 0 ? Number(status.tasks[name] ?? 0) : 0;
-    const expired = Math.min(count('leased'), Math.max(0, Number(status.expired_leases) || 0));
-    $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} awaiting verification`;
-    const list = $('active-leases');
-    list.replaceChildren();
-    for (const lease of status.active_leases || []) {
-      const field = data?.fields.find(f => f.task_id === lease.task_id);
-      const started = new Date(lease.started * 1000).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'});
-      textNode('li', [field?.code, lease.label, 'Leased ' + started].filter(Boolean).join(' · '), list);
+    if (!status.queue_fields || !['pending', 'leased', 'submitted'].every(key => Array.isArray(status.queue_fields[key]))) throw new Error('Queue lists unavailable');
+    const fieldsByTask = new Map((data?.fields || []).map(field => [field.task_id, field]));
+    for (const [state, heading, listId, label] of [
+      ['submitted', 'verification-heading', 'verification-fields', 'awaiting verification'],
+      ['leased', 'leases-heading', 'active-leases', count('leased') === 1 ? 'active lease' : 'active leases'],
+      ['pending', 'ready-heading', 'ready-fields', 'ready to claim'],
+    ]) {
+      $(heading).textContent = `${count(state)} ${label}`;
+      const list = $(listId);
+      const scrollTop = list.scrollTop;
+      list.replaceChildren();
+      for (const item of status.queue_fields[state]) {
+        const field = fieldsByTask.get(item.task_id);
+        const parts = [field?.code, item.label];
+        if (state === 'leased' && item.started) parts.push('Leased ' + new Date(item.started * 1000).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
+        textNode('li', parts.filter(Boolean).join(' · '), list);
+      }
+      if (!list.childElementCount) textNode('li', 'None', list, 'muted');
+      list.scrollTop = scrollTop;
     }
-    list.hidden = !list.childElementCount;
+    $('queue-lists').hidden = false;
+    $('queue-status').hidden = true;
     if (count('audit_hold')) {
       $('recovered-expectation').textContent = 'Under review';
     } else if (data) {
       $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     }
   } catch {
-    $('active-leases').hidden = true;
+    $('queue-lists').hidden = true;
+    $('queue-status').hidden = false;
     $('queue-status').textContent = 'Live queue temporarily unavailable';
   }
 }
