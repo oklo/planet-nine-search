@@ -7,7 +7,7 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=8">
+  <link rel="stylesheet" href="map.css?v=9">
   <script src="map.js?v=11" defer></script>
 </head>
 <body>
@@ -20,18 +20,16 @@
   </header>
   <nav class="site-nav" aria-label="Primary">
     <div class="band"><div class="site-nav__scroller">
-      <ul><li><a href="/">Blog</a></li><li><a href="join.html">Join the search</a></li></ul>
+      <ul><li><a href="/">Blog</a></li><li><a href="join.html">Join the search <span aria-hidden="true">↗</span></a></li></ul>
     </div></div>
   </nav>
   <main id="primary-content" class="site-main" tabindex="-1">
     <p id="snapshot-time" class="small">Loading the latest published search map…</p>
     <div id="load-error" role="alert" hidden>The search map could not load. Please reload the page.</div>
     <noscript><p>The interactive map needs JavaScript. The <a href="snapshot.json">search snapshot</a> remains available to download.</p></noscript>
-    <div class="expectation-metrics" aria-label="Planet expectation estimates">
+    <div class="metrics" aria-label="Search progress">
       <div><strong id="recoverable-expectation">—</strong><button class="metric-label" type="button" data-metric="recoverable" aria-haspopup="dialog" aria-controls="metric-info">planet nines in expectation recoverable</button></div>
       <div><strong id="recovered-expectation">—</strong><button class="metric-label" type="button" data-metric="recovered" aria-haspopup="dialog" aria-controls="metric-info">planet nines in expectation probed</button></div>
-    </div>
-    <div class="metrics" aria-label="Search snapshot totals">
       <div><strong id="searched-count">—</strong><button class="metric-label" type="button" data-metric="searched" aria-haspopup="dialog" aria-controls="metric-info">fields searched</button></div>
       <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">fields awaiting follow-up</button></div>
     </div>
@@ -115,6 +113,6 @@
       <p><a href="snapshot.json" download>Download the map snapshot (JSON)</a></p>
     </details>
   </main>
-  <footer class="site-footer"><div class="band"><span>oklo · planet nine search</span><span>Unlinked preview</span></div></footer>
+  <footer class="site-footer"><div class="band"><span>oklo · planet nine search</span></div></footer>
 </body>
 </html>
