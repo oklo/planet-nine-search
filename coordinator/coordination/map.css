@@ -17,7 +17,16 @@
   --field-fill: .07;
   --field-fill-selected: .12;
 }
-.site-header { background-image: url('/wp-content/uploads/2020/12/cropped-Screen-Shot-2020-12-31-at-9.19.30-AM.png'); }
+.site-header { position: relative; isolation: isolate; }
+.site-header::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url('/wp-content/uploads/2020/12/cropped-Screen-Shot-2020-12-31-at-9.19.30-AM.png') no-repeat right center / auto 100%;
+  filter: grayscale(1) sepia(1) saturate(4) hue-rotate(173deg);
+}
 .site-main { max-width: var(--wide); }
 .small, button, select, .metrics, .map-caption, .state-legend, .reference-legend, .queue-status { font-family: var(--sans); }
 h2 { margin: 0; font-size: 1.3rem; line-height: 1.3; }
