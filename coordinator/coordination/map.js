@@ -412,7 +412,8 @@ async function initialize() {
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
-    $('followup-count').textContent = data.physical_followup_flags;
+    $('followup-count').textContent = data.fields.filter(field => field.state === 'needs_followup').length;
+    metricDescriptions.flags = `These fields contain ${data.physical_followup_flags} tracks awaiting review. One field can contain several tracks.`;
     $('field-count').textContent = data.fields.length;
     $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     if (data.expectation_forecast) {
