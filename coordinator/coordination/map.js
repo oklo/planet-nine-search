@@ -243,10 +243,10 @@ function selectField(code, zoom = true) {
   selectedSector = null;
   $('clear-selection').hidden = !selected;
   emphasizeField();
+  $('field-panel').hidden = !selected;
   const panel = $('field-details');
   panel.replaceChildren();
   if (!selected) {
-    textNode('p', 'Select a field on the map to inspect its sectors.', panel, 'muted');
     setView(view);
     return;
   }

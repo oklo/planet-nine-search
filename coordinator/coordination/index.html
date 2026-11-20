@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=10">
-  <script src="map.js?v=14" defer></script>
+  <link rel="stylesheet" href="map.css?v=11">
+  <script src="map.js?v=15" defer></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -88,14 +88,11 @@
       <p id="queue-status" class="queue-status" role="status">Checking the shared queue…</p>
     </section>
     <div class="lower-grid">
-      <section aria-labelledby="field-heading">
+      <section id="field-panel" aria-labelledby="field-heading" hidden>
         <div class="section-heading">
           <h2 id="field-heading">Field details</h2>
         </div>
-        <div id="field-details" aria-live="polite">
-          <p class="muted">Zoom into a group of fields, then click an outline to inspect its coverage.</p>
-          <p class="small">Overlapping outlines are individual TESS sectors. Dashed blue outlines show planned images.</p>
-        </div>
+        <div id="field-details" aria-live="polite"></div>
       </section>
       <ul id="active-leases" class="small" aria-label="Current leases" hidden></ul>
     </div>
