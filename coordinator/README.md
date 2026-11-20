@@ -10,7 +10,6 @@ Include `.htaccess`, or equivalent access rules, to protect administrative files
 php admin.php init
 php admin.php add field.json 10
 php admin.php workers
-php admin.php approve WORKER_ID
 ```
 
 Generate canonical task JSON and bounded geometry bundles with
@@ -20,16 +19,19 @@ Brown reference CSV; pass its output as `--prior`. Review geometry, motion masks
 and injection choices before enqueueing. Workers allow bundle downloads only
 from `https://oklo.org` unless given another trusted `--bundle-origin`.
 
-Registration creates a pending worker. Approval allows one active lease, at most two
+Registration automatically admits new workers with one active lease, at most two
 unreviewed results, and at most eight new claims per day by default (operator
 configurable from 1 to 96). Leases renew for at most
 six hours. Unreviewed results expire after 24 hours; the task returns to the
 queue and the worker needs reapproval. Three failed or expired leases also
-require reapproval. Worker reports never permanently retire tasks.
+require reapproval. Retrying registration preserves existing holds and revocations.
+Registration remains limited to ten new identities per address per day. Worker
+reports never permanently retire tasks.
 
 ```sh
 php admin.php requeue TASK_ID "reason"
 php admin.php revoke WORKER_ID
+php admin.php approve WORKER_ID
 php admin.php rotate WORKER_ID /private/replacement-token.txt
 php admin.php reserve WORKER_ID 4
 php admin.php claim-limit WORKER_ID 12
