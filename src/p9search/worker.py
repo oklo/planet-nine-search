@@ -113,6 +113,7 @@ def _work(args, budget, credentials, state):
                 if error.status != 409:
                     raise
                 client.clear_claim()
+    approval_started = None
     while True:
         maintain(
             root,
@@ -153,13 +154,17 @@ def _work(args, budget, credentials, state):
                 state(
                     "approval_wait", "Operator approval required; retaining this worker identity."
                 )
-                time.sleep(300)
+                now = time.monotonic()
+                if approval_started is None:
+                    approval_started = now
+                time.sleep(15 if now - approval_started < 600 else 300)
                 continue
             if not args.continuous or not transient(error):
                 raise
             state("transport_wait", "Coordinator unavailable; retrying in one minute.")
             time.sleep(60)
             continue
+        approval_started = None
         if claim["task"] is None:
             state("queue_wait", claim.get("reason", "No eligible field for this disk allocation."))
             if not args.continuous:
