@@ -427,7 +427,6 @@ async function initialize() {
     $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     if (data.expectation_forecast) {
       $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
-      $('forecast-note').textContent = 'The recoverable expectation is the earlier 100 machine-day projection from the initial two-worker benchmark. It assumes new, disjoint fields with comparable brightness and crowding. It is a sparse planning estimate, not a calibrated estimate of the total sky-wide recoverable probability; subsequent fields can change the projected rate.';
     } else {
       $('recoverable-expectation').textContent = 'Not estimated';
     }
@@ -441,7 +440,7 @@ async function initialize() {
     for (const field of [...data.fields].sort((a, b) => a.code.localeCompare(b.code, undefined, {numeric: true}))) {
       textNode('option', `${field.code} · ${STATES[field.state].label}`, $('field-select')).value = field.code;
     }
-    $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5. This engineering estimate is not a calibrated exclusion probability.`;
+    $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;
