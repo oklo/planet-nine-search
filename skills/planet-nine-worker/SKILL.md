@@ -17,9 +17,9 @@ Once the user has authorized continuous searching, start one persistent worker w
 
 Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk.
 
-Starting the worker registers it automatically. Operator approval is required to lease fields, not to install, start, or register. Complete setup and start the worker before reporting an approval wait. Confirm the process is running and inspect its state; starting the helper alone does not establish that registration succeeded.
+Starting the worker registers it and claims an available field automatically. Complete installation and start the worker; no approval request or GitHub issue is needed for a new participant. Verify its current task and fresh download or search progress before saying it is searching. Preserve the same credentials across restarts.
 
-At `approval_wait`, report the `worker_id` from the private credential file without printing its token or the file contents. Tell the user they can request approval at https://github.com/oklo/planet-nine-search/issues/new with that worker ID. Leave the background worker running: it checks every 15 seconds for the first ten minutes, then every five minutes, and claims work after approval. Do not promise immediate approval or create replacement identities while waiting. Report actual installation or registration errors with the failed step.
+An `approval_wait` means this identity has been held for review, rather than routine onboarding. Report that the worker is paused for review and preserve its process and credentials. Provide only its public `worker_id` when needed for support; never print its token or credential file. Do not register a replacement to evade the hold. Report actual installation or registration errors with the failed step.
 
 The helper detaches `p9 worker --continuous` from the conversation and records its identity. The process continues between agent turns, while the computer is awake. It does not restart after a reboot or an unexplained crash. Calling `start` again without worker arguments reuses the saved settings. If another service already manages this worker, inspect that service instead of launching a duplicate. Different workers need separate credentials, directories and session paths.
 
