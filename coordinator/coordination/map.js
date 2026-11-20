@@ -7,7 +7,7 @@ const STATES = {
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
   preflight_failed: {label: 'Stopped before search', color: 'var(--field-preflight)'},
   deferred: {label: 'Deferred / incomplete', color: 'var(--field-deferred)', style: 'open'},
-  queued: {label: 'Queued', color: 'var(--field-queued)', style: 'dashed'},
+  queued: {label: 'Queued', color: 'var(--field-queued)', style: 'circle'},
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
