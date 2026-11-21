@@ -1,9 +1,9 @@
-import {recoverySummary} from './sensitivity.mjs?v=1';
+import {recoverySummary} from './sensitivity.mjs?v=2';
 
 'use strict';
 
 const STATES = {
-  complete: {label: 'Search + recovery complete', color: 'var(--field-complete)'},
+  complete: {label: 'Recovery measured', color: 'var(--field-complete)'},
   needs_followup: {label: 'Follow-up open', color: 'var(--field-followup)'},
   calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
@@ -451,7 +451,7 @@ async function initialize() {
     }
     for (const [state, info] of Object.entries(STATES)) {
       const item = textNode('span', '', $('state-legend'));
-      const swatch = textNode('i', '', item, info.style || '');
+      const swatch = textNode('i', '', item, state === 'complete' ? 'recovery-scale' : (info.style || ''));
       swatch.style.setProperty('--state-color', info.color);
       swatch.setAttribute('aria-hidden', 'true');
       item.append(`${info.label} (${data.field_counts[state] || 0})`);

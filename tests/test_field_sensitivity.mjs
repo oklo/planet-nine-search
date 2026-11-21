@@ -26,3 +26,9 @@ test('historical magnitude tests are retained', () => {
   assert.equal(r.declared, 8);
   assert.equal(r.recovered, 2);
 });
+
+test('older native reports without prior IDs use their magnitude counts', () => {
+  const f = {state: 'complete', injections: [{V: 19, recovered: true}], depth_samples: [{tested: 1, recovered: 1}]};
+  assert.equal(recoverySummary(f).recovered, 1);
+  assert.equal(recoverySummary(f).strength, .5);
+});
