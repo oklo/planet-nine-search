@@ -442,7 +442,7 @@ async function initialize() {
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
-    metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields are being assessed. Each trace is a trial trajectory selected by the search.`;
+    metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields await follow-up. A trace is a possible path across the images along which the search found excess light. Several traces can come from the same star.`;
     $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     if (data.expectation_forecast) {
       $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
