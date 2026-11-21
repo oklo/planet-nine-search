@@ -4,8 +4,6 @@ on:
     paths-ignore:
       - 'coordinator/coordination/snapshot.json'
   pull_request:
-    paths-ignore:
-      - 'coordinator/coordination/snapshot.json'
   workflow_dispatch:
 permissions:
   contents: read
