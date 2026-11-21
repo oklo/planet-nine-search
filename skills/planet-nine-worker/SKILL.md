@@ -7,6 +7,8 @@ Use the participant's installed `planet-nine-search` environment. Install from t
 
 ## Start
 
+Finish dependency installation before starting the worker. Run installers one at a time; do not change packages while a worker is running. If startup reports conflicting installed versions, preserve the work and credentials, create a clean environment, and install once before resuming.
+
 Once the user has authorized continuous searching, start one persistent worker with the bundled helper. From the repository root, for example:
 
 ```sh

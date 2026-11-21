@@ -14,6 +14,7 @@ from .client import Client, CoordinatorError
 from .diagnostics import BoundedOutput, State
 from .evidence import pack
 from .network import TransportError
+from .provenance import installed_dependencies
 from .retention import discard_interrupted, maintain, release_pixels
 from .storage import (
     DirectoryLock,
@@ -96,6 +97,7 @@ def work(args, budget):
 
 
 def _work(args, budget, credentials, state):
+    installed_dependencies()
     root = Path(args.directory).resolve()
     client = Client(args.coordinator, credentials)
     state("connecting", "Registering the existing worker identity.")
