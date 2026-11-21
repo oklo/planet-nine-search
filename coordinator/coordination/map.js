@@ -4,7 +4,7 @@ import {recoverySummary} from './sensitivity.mjs?v=2';
 
 const STATES = {
   complete: {label: 'Recovery measured', color: 'var(--field-complete)'},
-  needs_followup: {label: 'Follow-up open', color: 'var(--field-followup)'},
+  needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-followup)'},
   calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
   preflight_failed: {label: 'Stopped before search', color: 'var(--field-preflight)'},
@@ -454,7 +454,13 @@ async function initialize() {
       const swatch = textNode('i', '', item, state === 'complete' ? 'recovery-scale' : (info.style || ''));
       swatch.style.setProperty('--state-color', info.color);
       swatch.setAttribute('aria-hidden', 'true');
-      item.append(`${info.label} (${data.field_counts[state] || 0})`);
+      const count = data.field_counts[state] || 0;
+      if (state === 'needs_followup') {
+        const traces = data.physical_followup_flags;
+        item.append(`${traces} candidate ${traces === 1 ? 'trace' : 'traces'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
+      } else {
+        item.append(`${info.label} (${count})`);
+      }
     }
     $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5.`;
     drawMap();
