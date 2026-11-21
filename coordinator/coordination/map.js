@@ -4,7 +4,7 @@ import {recoverySummary} from './sensitivity.mjs?v=2';
 
 const STATES = {
   complete: {label: 'Recovery measured', color: 'var(--field-complete)'},
-  needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-followup)'},
+  needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-complete)', style: 'open'},
   calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
   preflight_failed: {label: 'Stopped before search', color: 'var(--field-preflight)'},
@@ -131,15 +131,19 @@ function drawMap() {
       const recovery = recoverySummary(field);
       group.style.opacity = String(.015 + .70 * (recovery?.strength || 0));
     }
+    const followup = field.state === 'needs_followup';
     const paths = field.footprints.map(footprint => svgNode('path', {
-      d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: state.color,
+      d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: followup ? 'none' : state.color,
+      'pointer-events': 'all',
       'fill-opacity': field.state === 'complete' ? 1 : 'var(--field-fill)', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
       'stroke-dasharray': field.state === 'queued' ? '4 3' : 'none',
       'data-sector': footprint.sector,
     }, group));
     const [x, y] = project(field.ra_deg, field.dec_deg);
-    const dot = svgNode('circle', {cx: x, cy: y, r: 3, fill: state.style ? 'var(--map-surface)' : state.color,
-      stroke: state.color, 'stroke-width': 1, 'vector-effect': 'non-scaling-stroke'}, group);
+    const shape = followup ? {x: -1, y: -1, width: 2, height: 2, fill: 'none'} :
+      {cx: 0, cy: 0, r: 1, fill: state.style ? 'var(--map-surface)' : state.color};
+    const dot = svgNode(followup ? 'rect' : 'circle', {...shape, stroke: state.color,
+      'stroke-width': 1, 'pointer-events': 'all', 'vector-effect': 'non-scaling-stroke'}, group);
     const label = svgNode('g', {fill: state.color, 'data-code': field.code}, $('field-labels'));
     const codeText = svgNode('text', {'font-size': 12}, label);
     codeText.textContent = field.code;
@@ -167,7 +171,8 @@ function setView(next) {
   const ordered = [...fieldNodes].sort(([a], [b]) => Number(b === selected) - Number(a === selected));
   for (const [code, nodes] of ordered) {
     const active = code === selected;
-    nodes.dot.setAttribute('r', (active ? 4 : zoom < 6 ? 2.5 : 2) * unit);
+    const radius = (active ? 4 : zoom < 6 ? 2.5 : 2) * unit;
+    nodes.dot.setAttribute('transform', `translate(${nodes.x} ${nodes.y}) scale(${radius})`);
     const detailed = [nodes.x - nodes.labelWidth / 2 * unit, nodes.y - 32 * unit,
       nodes.x + nodes.labelWidth / 2 * unit, nodes.y + 19 * unit];
     const corners = [[detailed[0], detailed[1]], [detailed[2], detailed[1]],
