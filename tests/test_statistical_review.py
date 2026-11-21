@@ -270,3 +270,16 @@ def test_explicit_replay_can_upgrade_a_consistency_check(tmp_path, monkeypatch):
     review.review(args)
     receipt = review.verify_signed(read_json(args.directory / "receipt.json"), key)
     assert calls == [True] and receipt["full_replay_verified"] is True
+
+
+@pytest.mark.parametrize("fraction", [0.03, 0.18, 0.5])
+def test_usable_pixel_results_keep_historical_quality_policy_distinct(fraction):
+    spec, report = example()
+    report["quality"][0]["masked_fraction"] = fraction
+    with pytest.raises(ValueError, match="Invalid search state"):
+        check_report(spec, report, [source_hash()])
+    report["quality_method"] = "usable-pixels-v1"
+    check_report(spec, report, [source_hash()])
+    report["quality"][0]["masked_fraction"] = 1.0
+    with pytest.raises(ValueError, match="Invalid search state"):
+        check_report(spec, report, [source_hash()])

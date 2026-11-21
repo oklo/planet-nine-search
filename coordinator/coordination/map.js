@@ -1,3 +1,5 @@
+import {recoverySummary} from './sensitivity.mjs?v=1';
+
 'use strict';
 
 const STATES = {
@@ -125,9 +127,13 @@ function drawMap() {
     const state = STATES[field.state];
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
     svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
+    if (field.state === 'complete') {
+      const recovery = recoverySummary(field);
+      group.style.opacity = String(.015 + .70 * (recovery?.strength || 0));
+    }
     const paths = field.footprints.map(footprint => svgNode('path', {
       d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: state.color,
-      'fill-opacity': 'var(--field-fill)', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
+      'fill-opacity': field.state === 'complete' ? 1 : 'var(--field-fill)', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
       'stroke-dasharray': field.state === 'queued' ? '4 3' : 'none',
       'data-sector': footprint.sector,
     }, group));
@@ -144,7 +150,7 @@ function drawMap() {
     countText.textContent = candidateLabel(field);
     const labelWidth = Math.max(...[codeText, depthText, countText].map(n => n.getComputedTextLength())) + 12;
     const polygons = field.footprints.map(p => p.ra_dec_deg.map(point => project(...point)));
-    fieldNodes.set(field.code, {group, paths, dot, label, codeText, details, depthText, countText, labelWidth, polygons, x, y});
+    fieldNodes.set(field.code, {group, paths, dot, label, codeText, details, depthText, countText, labelWidth, polygons, x, y, complete: field.state === 'complete'});
   }
   setView(view);
 }
@@ -231,7 +237,7 @@ function emphasizeField() {
       const sectorMatches = selectedSector === null || Number(path.dataset.sector) === selectedSector;
       path.style.opacity = active ? (sectorMatches ? 1 : .16) : (selected ? .35 : 1);
       path.setAttribute('stroke-width', active && sectorMatches ? 2 : 1.1);
-      path.setAttribute('fill-opacity', active && sectorMatches ? 'var(--field-fill-selected)' : 'var(--field-fill)');
+      path.setAttribute('fill-opacity', nodes.complete ? 1 : (active && sectorMatches ? 'var(--field-fill-selected)' : 'var(--field-fill)'));
     }
     nodes.dot.style.opacity = selected && !active ? .45 : 1;
     if (active) $('fields').append(nodes.group);
@@ -260,6 +266,8 @@ function selectField(code, zoom = true) {
     textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
   }
   textNode('p', `${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`, panel, 'field-meta');
+  const recovery = recoverySummary(field);
+  if (recovery) textNode('p', `${recovery.recovered} recovered / ${recovery.declared} test planets${recovery.assessed < recovery.declared ? ` · ${recovery.declared - recovery.assessed} unassessed` : ''}`, panel, 'field-meta');
   if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
   if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
   textNode('p', field.state === 'queued' ? 'Planned sector footprints' : 'Sector image footprints', panel, 'small');

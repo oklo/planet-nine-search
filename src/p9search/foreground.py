@@ -14,11 +14,36 @@ from .science.scene_likelihood import SceneProjector, scene_tangents, separable_
 from .science.sparse_composed import SparseComposedScorer
 from .science.temporal_pixel_quality_weighted import weighted_persistent_steps
 
+QUALITY_METHOD = "usable-pixels-v1"
+
 
 class QualityRejected(RuntimeError):
     def __init__(self, fraction):
-        super().__init__(f"Abrupt-pixel mask covers {fraction:.2%}; limit is 2%")
+        super().__init__("No usable pixels remain after masking")
         self.fraction = fraction
+
+
+def difficulty(scene, mask, keep, star_magnitudes):
+    """A scheduling diagnostic, not a detection probability (larger is harder)."""
+    v, u = scene.pixel_weight, scene.time_weight
+    valid = (v > 0) & ~mask
+    pixels = np.flatnonzero(valid)
+    epochs = np.flatnonzero(np.asarray(keep, bool) & (u > 0))
+    selected_pixels = pixels[np.linspace(0, len(pixels) - 1, min(len(pixels), 1024), dtype=int)]
+    selected_epochs = epochs[np.linspace(0, len(epochs) - 1, min(len(epochs), 128), dtype=int)]
+    residual = scene.residual.reshape(len(u), -1)[np.ix_(selected_epochs, selected_pixels)]
+    normalized = residual * np.sqrt(u[selected_epochs, None] * v.ravel()[selected_pixels])
+    noise = float(1.4826 * np.median(abs(normalized - np.median(normalized, axis=0))))
+    spatial = float(valid.mean())
+    temporal = float(len(epochs) / len(u))
+    return {
+        "method": "usable-area-exposure-noise-v1",
+        "score": float(100 * (1 - spatial * temporal / max(1.0, noise) ** 2)),
+        "usable_pixel_fraction": spatial,
+        "usable_exposure_fraction": temporal,
+        "residual_noise_ratio": noise,
+        "bright_stars": int(np.count_nonzero(np.asarray(star_magnitudes) < 15)),
+    }
 
 
 def screen(sector, raw_override=None, fixed_weights=None, *, empirical_stars=False):
@@ -42,6 +67,8 @@ def screen(sector, raw_override=None, fixed_weights=None, *, empirical_stars=Fal
         v = np.where(np.isfinite(raw[u > 0]).all(axis=0), v, 0.0)
     else:
         u, v = fixed_weights
+    if not np.any(v > 0):
+        raise QualityRejected(1.0)
     corrected, _ = linear_scene_subtract(raw, geom["keep"], gaia)
     selected = (
         np.isfinite(stars["tmag"]) & (stars["tmag"] < 12.0)
@@ -73,9 +100,10 @@ def screen(sector, raw_override=None, fixed_weights=None, *, empirical_stars=Fal
         minimum_instant_score=8.0,
     )
     mask = quality["mask"]
-    fraction = float(mask.sum() / np.sum(v > 0))
-    if fraction > 0.02:
+    fraction = float(np.count_nonzero(mask & (v > 0)) / np.count_nonzero(v > 0))
+    if not np.any((v > 0) & ~mask):
         raise QualityRejected(fraction)
+    diagnostic = difficulty(scene, mask, geom["keep"], stars["tmag"])
     del scene
     return {
         "design": design,
@@ -83,6 +111,7 @@ def screen(sector, raw_override=None, fixed_weights=None, *, empirical_stars=Fal
         "stars": stars,
         "quality": quality,
         "masked_fraction": fraction,
+        "difficulty": diagnostic,
     }
 
 

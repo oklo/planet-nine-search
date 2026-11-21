@@ -53,3 +53,8 @@ per sector in each task, because their benefit varies between fields.
 [Tested macOS/Python 3.12 environment](environments/macos-arm64-python312.txt)
 
 Tests: `pip install '.[dev]' && pytest`. Coordinator tests require PHP/SQLite.
+
+Pixel masks remove unreliable measurements without rejecting the rest of a field.
+Native injections rebuild the same foreground model and masks; only admitted
+recoveries enter sensitivity accounting. Historical results retain their original
+quality policy.

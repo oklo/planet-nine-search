@@ -96,7 +96,7 @@ def test_informative_sectors_alone_can_qualify_only_for_unchanged_empty_injectio
     monkeypatch.setattr(search, "acquire", lambda *a: None)
     monkeypatch.setattr(search, "SkyFrame", lambda *a: None)
     monkeypatch.setattr(search, "SectorGeometry", sector)
-    monkeypatch.setattr(search, "screen", lambda *a, **k: {"masked_fraction": 0.0})
+    monkeypatch.setattr(search, "screen", lambda *a, **k: {"masked_fraction": 0.18})
     monkeypatch.setattr(search, "fit", fit)
     monkeypatch.setattr(search, "prepare", lambda s, m: m)
     monkeypatch.setattr(search, "bin_template", template)
@@ -132,7 +132,7 @@ def test_informative_sectors_alone_can_qualify_only_for_unchanged_empty_injectio
         assert result["source_sha256"] == result["launch"]["source_sha256"]
 
 
-def test_bad_later_sector_rejects_before_any_expensive_foreground_fit(tmp_path, monkeypatch):
+def test_empty_later_sector_stops_without_claiming_a_search(tmp_path, monkeypatch):
     spec = specification(sectors=[1, 28, 68])
     visited = []
     monkeypatch.setattr(search, "fetch_bundle", lambda *a: tmp_path)
@@ -148,7 +148,7 @@ def test_bad_later_sector_rejects_before_any_expensive_foreground_fit(tmp_path, 
         sid = sector.meta["sector"]
         visited.append(sid)
         if sid == 68:
-            raise search.QualityRejected(0.109)
+            raise search.QualityRejected(1.0)
         return {"masked_fraction": 0.001}
 
     def expensive(*args, **kwargs):
@@ -160,5 +160,5 @@ def test_bad_later_sector_rejects_before_any_expensive_foreground_fit(tmp_path, 
     result = search.run(spec, tmp_path, DiskBudget(tmp_path, 2**30, 0))
     assert visited == [1, 28, 68]
     assert result["state"] == "quality_rejected"
-    assert result["quality"][-1] == {"sector": 68, "masked_fraction": 0.109}
+    assert result["quality"][-1] == {"sector": 68, "masked_fraction": 1.0}
     assert result["exclusion_credit"] == 0

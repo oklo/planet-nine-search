@@ -1,0 +1,28 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {recoverySummary} from '../coordinator/coordination/sensitivity.mjs';
+
+const field = (success, total) => ({state: 'complete', injections: Array.from({length: total}, (_, i) => ({reference_index: i, recovered: i < success}))});
+test('a completed search without recovery stays faint', () => {
+  assert.equal(recoverySummary(field(0, 12)).strength, 0);
+  assert.equal(recoverySummary({state: 'preflight_failed'}), null);
+  assert.equal(recoverySummary({state: 'complete', depth_samples: []}), null);
+});
+test('more recoveries and more supporting tests deepen green', () => {
+  assert.ok(recoverySummary(field(1, 4)).strength < recoverySummary(field(3, 4)).strength);
+  assert.ok(recoverySummary(field(1, 1)).strength < recoverySummary(field(10, 10)).strength);
+  assert.ok(recoverySummary(field(1, 1)).strength < 1);
+});
+test('duplicates and unassessed trials cannot increase recovery', () => {
+  const f = field(1, 1), initial = recoverySummary(f).strength;
+  f.injections.push({reference_index: 2, recovered: null});
+  assert.equal(recoverySummary(f).assessed, 1);
+  assert.ok(recoverySummary(f).strength < initial);
+  f.injections.push(f.injections[0]);
+  assert.equal(recoverySummary(f), null);
+});
+test('historical magnitude tests are retained', () => {
+  const r = recoverySummary({state: 'complete', depth_samples: [{tested: 4, recovered: 2}, {tested: 4, recovered: 0}]});
+  assert.equal(r.declared, 8);
+  assert.equal(r.recovered, 2);
+});
