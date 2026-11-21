@@ -4,6 +4,7 @@ import {recoverySummary} from './sensitivity.mjs?v=2';
 
 const STATES = {
   complete: {label: 'Recovery measured', color: 'var(--field-complete)'},
+  unsearchable: {label: 'Reviewed · no searchable data', color: 'var(--field-complete)'},
   needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-complete)', style: 'open'},
   calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
@@ -127,9 +128,12 @@ function drawMap() {
     const state = STATES[field.state];
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
     svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
-    if (field.state === 'complete') {
+    if (field.state === 'unsearchable') {
+      group.style.opacity = 'var(--assessed-floor)';
+      $('fields').prepend(group);
+    } else if (field.state === 'complete') {
       const recovery = recoverySummary(field);
-      group.style.opacity = String(.015 + .70 * (recovery?.strength || 0));
+      group.style.opacity = `calc(var(--assessed-floor) + ${.595 * (recovery?.strength || 0)})`;
     }
     const followup = field.state === 'needs_followup';
     const paths = field.footprints.map(footprint => svgNode('path', {
@@ -455,10 +459,12 @@ async function initialize() {
       $('recoverable-expectation').textContent = 'Not estimated';
     }
     for (const [state, info] of Object.entries(STATES)) {
+      if (state === 'unsearchable' && !data.field_counts[state]) continue;
       const item = textNode('span', '', $('state-legend'));
       const swatch = textNode('i', '', item, state === 'complete' ? 'recovery-scale' : (info.style || ''));
       swatch.style.setProperty('--state-color', info.color);
       swatch.setAttribute('aria-hidden', 'true');
+      if (state === 'unsearchable') swatch.style.opacity = 'var(--assessed-floor)';
       const count = data.field_counts[state] || 0;
       if (state === 'needs_followup') {
         const traces = data.physical_followup_flags;
