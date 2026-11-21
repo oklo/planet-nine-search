@@ -129,11 +129,11 @@ function drawMap() {
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
     svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
     if (field.state === 'unsearchable') {
-      group.style.opacity = '0';
+      group.style.opacity = 'var(--assessed-floor)';
       $('fields').prepend(group);
     } else if (field.state === 'complete') {
       const recovery = recoverySummary(field);
-      group.style.opacity = String(.015 + .70 * (recovery?.strength || 0));
+      group.style.opacity = `calc(var(--assessed-floor) + ${.595 * (recovery?.strength || 0)})`;
     }
     const followup = field.state === 'needs_followup';
     const paths = field.footprints.map(footprint => svgNode('path', {
@@ -186,7 +186,7 @@ function setView(next) {
     const showDetails = nodes.polygons.some(p => corners.every(c => insidePolygon(c, p))) && !collides(detailed);
     const bounds = showDetails ? detailed : [nodes.x + 6 * unit, nodes.y - 16 * unit, nodes.x + 40 * unit, nodes.y + 1 * unit];
     const overlap = collides(bounds);
-    const visible = (active || (zoom >= 4 && !overlap && nodes.group.style.opacity !== '0')) && nodes.x > view.x && nodes.x < view.x + width && nodes.y > view.y && nodes.y < view.y + height;
+    const visible = (active || (zoom >= 4 && !overlap)) && nodes.x > view.x && nodes.x < view.x + width && nodes.y > view.y && nodes.y < view.y + height;
     nodes.label.style.display = visible ? '' : 'none';
     nodes.details.style.display = showDetails ? '' : 'none';
     nodes.dot.style.display = visible && showDetails ? 'none' : '';
@@ -464,7 +464,7 @@ async function initialize() {
       const swatch = textNode('i', '', item, state === 'complete' ? 'recovery-scale' : (info.style || ''));
       swatch.style.setProperty('--state-color', info.color);
       swatch.setAttribute('aria-hidden', 'true');
-      if (state === 'unsearchable') swatch.style.opacity = '0';
+      if (state === 'unsearchable') swatch.style.opacity = 'var(--assessed-floor)';
       const count = data.field_counts[state] || 0;
       if (state === 'needs_followup') {
         const traces = data.physical_followup_flags;
