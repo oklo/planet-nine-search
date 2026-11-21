@@ -4,7 +4,6 @@ declare(strict_types=1);
 const PROTOCOL = "tess-gaia-hough-v2";
 const LEASE_SECONDS = 1800;
 const MAX_LEASE_SECONDS = 21600;
-const REVIEW_SECONDS = 86400;
 
 function database_path(): string
 {
@@ -37,23 +36,6 @@ function query(PDO $db, string $sql, array $args = []): PDOStatement
     $statement = $db->prepare($sql);
     $statement->execute($args);
     return $statement;
-}
-
-function claim_limit(PDO $db, string $worker): int
-{
-    $value = query($db, "SELECT value FROM settings WHERE key=?", [
-        "claim_limit:" . $worker,
-    ])->fetchColumn();
-    if ($value === false) {
-        return 8;
-    }
-    $limit = filter_var($value, FILTER_VALIDATE_INT, [
-        "options" => ["min_range" => 1, "max_range" => 96],
-    ]);
-    if ($limit === false) {
-        throw new RuntimeException("Configured daily claim limit must be 1..96");
-    }
-    return $limit;
 }
 
 function transaction(PDO $db, callable $action): mixed
@@ -120,24 +102,12 @@ function expire_work(PDO $db): void
     foreach (
         query(
             $db,
-            "SELECT id,worker_id,state FROM tasks WHERE state IN ('leased','submitted') AND expires<=?",
+            "SELECT id,worker_id,state FROM tasks WHERE state='leased' AND expires<=?",
             [time()],
         )->fetchAll(PDO::FETCH_ASSOC)
         as $job
     ) {
-        if ($job["state"] === "submitted") {
-            query(
-                $db,
-                "UPDATE workers SET status='pending' WHERE id=? AND status='approved'",
-                [$job["worker_id"]],
-            );
-        } else {
-            query(
-                $db,
-                "UPDATE workers SET strikes=strikes+1,status=CASE WHEN strikes>=2 THEN 'pending' ELSE status END WHERE id=?",
-                [$job["worker_id"]],
-            );
-        }
+        query($db, "UPDATE workers SET strikes=strikes+1 WHERE id=?", [$job["worker_id"]]);
         requeue($db, $job["id"], $job["state"] . " timeout", "expired");
     }
 }

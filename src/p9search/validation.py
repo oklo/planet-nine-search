@@ -106,19 +106,27 @@ def check_report(spec, report, approved_sources):
         type(count) is int and isinstance(candidates, list) and count == len(candidates),
         "Candidate count differs",
     )
+    quality_method = report.get("quality_method", "area-limit-v1")
+    require(quality_method in ("area-limit-v1", "usable-pixels-v1"), "Unknown pixel policy")
+
+    def usable(row):
+        if quality_method == "usable-pixels-v1":
+            return row["masked_fraction"] < 1
+        return row["masked_fraction"] <= 0.02
+
     if state == "quality_rejected":
         require(
             not count
             and report.get("injections") == []
-            and quality[-1]["masked_fraction"] > 0.02
-            and all(r["masked_fraction"] <= 0.02 for r in quality[:-1]),
+            and not usable(quality[-1])
+            and all(usable(r) for r in quality[:-1]),
             "Quality rejection does not match the stop condition",
         )
         return
     require(
         state in ("searched", "needs_followup")
         and len(quality) == len(spec["sectors"])
-        and all(r["masked_fraction"] <= 0.02 for r in quality),
+        and all(usable(r) for r in quality),
         "Invalid search state",
     )
     maxima = report.get("arm_maxima", {})

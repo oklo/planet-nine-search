@@ -303,20 +303,6 @@ def test_voluntary_releases_do_not_exhaust_failure_budget(coordinator):
     assert coordinator[1]("SELECT state,failures FROM tasks")[0] == ("pending", 1)
 
 
-def reserve(service, pair, count):
-    import hashlib
-
-    worker_id = service[1](
-        "SELECT id FROM workers WHERE token_hash=?", [hashlib.sha256(pair[0].encode()).hexdigest()]
-    )[0][0]
-    return service[2]("reserve", worker_id, count)
-
-
-def set_claim_limit(service, pair, count):
-    worker_id = worker_id_for(service, pair)
-    return service[2]("claim-limit", worker_id, count)
-
-
 def worker_id_for(service, pair):
     import hashlib
 
@@ -335,105 +321,23 @@ def record_claims(service, pair, count):
     return worker_id
 
 
-def test_default_daily_claim_limit_is_eight(coordinator):
+def test_claim_history_and_legacy_quotas_do_not_throttle_workers(coordinator):
     task = seed(coordinator)
     pair = worker(coordinator)
-    record_claims(coordinator, pair, 8)
-    response = claim(coordinator, pair)
-    assert response.status_code == 200
-    assert response.json()["reason"] == "daily claim limit"
-    assert response.json()["limit"] == 8
-    assert (
-        coordinator[1]("SELECT state FROM tasks WHERE id=?", [task["task_id"]])[0][0] == "pending"
-    )
+    identity = record_claims(coordinator, pair, 100)
+    for key, value in [("claim_limit:", "1"), ("reserve:", "100")]:
+        coordinator[1]("INSERT INTO settings VALUES(?,?)", [key + identity, value])
+    assert claim(coordinator, pair).json()["task"] == task
 
 
-def test_configured_higher_quota_applies_to_only_selected_worker(coordinator):
-    for number in range(1, 14):
+def test_worker_continues_through_a_review_backlog(coordinator):
+    for number in range(1, 13):
         seed(coordinator, number)
-    selected, default = worker(coordinator), worker(coordinator)
-    assert set_claim_limit(coordinator, selected, 12).returncode == 0
-    selected_id = record_claims(coordinator, selected, 8)
-    record_claims(coordinator, default, 8)
-    response = claim(coordinator, selected)
-    assert response.json()["task"] is not None
-    assert claim(coordinator, default).json() == {
-        "task": None,
-        "retry_after": 300,
-        "reason": "daily claim limit",
-        "limit": 8,
-    }
-    assert (
-        coordinator[1](
-            "SELECT detail FROM events WHERE worker_id=? AND action='claim-limit'", [selected_id]
-        )[0][0]
-        == "12"
-    )
-
-
-def test_claim_limit_rejects_values_outside_one_to_ninety_six(coordinator):
     pair = worker(coordinator)
-    assert set_claim_limit(coordinator, pair, 0).returncode != 0
-    assert set_claim_limit(coordinator, pair, 97).returncode != 0
-    assert set_claim_limit(coordinator, pair, "not-a-number").returncode != 0
-    worker_id = worker_id_for(coordinator, pair)
-    assert (
-        coordinator[1]("SELECT COUNT(*) FROM settings WHERE key=?", ["claim_limit:" + worker_id])[
-            0
-        ][0]
-        == 0
-    )
-
-
-def test_higher_daily_limit_does_not_bypass_pending_review(coordinator):
-    seed(coordinator, 1)
-    seed(coordinator, 2)
-    third = seed(coordinator, 3)
-    pair = worker(coordinator)
-    assert set_claim_limit(coordinator, pair, 12).returncode == 0
-    submission(coordinator, pair)
-    submission(coordinator, pair)
-    response = claim(coordinator, pair)
-    assert response.status_code == 200
-    assert response.json()["task"] is None
-    assert response.json() == {"task": None, "reason": "awaiting review", "retry_after": 60}
-    assert (
-        coordinator[1]("SELECT state FROM tasks WHERE id=?", [third["task_id"]])[0][0] == "pending"
-    )
-
-
-def test_operator_reserve_preserves_visitors_and_existing_leases(coordinator):
-    operator, visitor = worker(coordinator), worker(coordinator)
-    assert reserve(coordinator, operator, 1).returncode == 0
-    assert reserve(coordinator, operator, -1).returncode != 0
-    first = seed(coordinator, 1, priority=2)
-    assert claim(coordinator, operator).json()["task"] is None
-    seed(coordinator, 2)
-    assert claim(coordinator, operator).json()["task"] == first
-    # A retry of an existing lease still succeeds when the pool is at its floor.
-    assert claim(coordinator, operator).json()["task"] == first
-    assert claim(coordinator, visitor).json()["task"] is not None
-    coordinator[1]("UPDATE tasks SET expires=0")
-    assert claim(coordinator, operator).json()["task"] == first
-    body = {"task_id": first["task_id"], "lease_token": operator[1]}
-    assert call(coordinator, "release", body, operator[0]).status_code == 200
-    coordinator[1]("DELETE FROM tasks WHERE id<>?", [first["task_id"]])
-    assert claim(coordinator, operator).json()["task"] is None
-    assert reserve(coordinator, operator, 0).returncode == 0
-    assert claim(coordinator, operator).json()["task"] == first
-
-
-def test_concurrent_operator_claims_cannot_drain_the_reserve(coordinator):
-    operators = [worker(coordinator) for _ in range(3)]
-    for pair in operators:
-        assert reserve(coordinator, pair, 4).returncode == 0
-    for number in range(1, 6):
-        seed(coordinator, number)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-        responses = list(executor.map(lambda pair: claim(coordinator, pair), operators))
-    assert all(r.status_code == 200 for r in responses)
-    assert sum(r.json()["task"] is not None for r in responses) == 1
-    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='pending'")[0][0] == 4
+    for _ in range(11):
+        submission(coordinator, pair)
+    assert claim(coordinator, pair).json()["task"] is not None
+    assert coordinator[1]("SELECT COUNT(*),SUM(verified) FROM results")[0] == (11, 0)
 
 
 def submission(service, pair):
@@ -447,32 +351,31 @@ def submission(service, pair):
     return body
 
 
-def test_automatic_admission_preserves_holds_and_cannot_drain_queue(coordinator):
+def test_explicit_holds_remain_but_submission_allows_the_next_field(coordinator):
     for i in range(5):
         seed(coordinator, i + 1)
-    pending = worker(coordinator, approved=False)
-    assert claim(coordinator, pending).status_code == 403
-    attacker = worker(coordinator)
-    submission(coordinator, attacker)
-    submission(coordinator, attacker)
-    for _ in range(4):
-        response = claim(coordinator, attacker)
-        assert response.status_code == 200
-        assert response.json()["task"] is None
-    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='pending'")[0][0] == 3
+    held = worker(coordinator, approved=False)
+    assert claim(coordinator, held).status_code == 403
+    participant = worker(coordinator)
+    for _ in range(5):
+        submission(coordinator, participant)
+    assert coordinator[1]("SELECT COUNT(*) FROM tasks WHERE state='submitted'")[0][0] == 5
     assert coordinator[1]("SELECT SUM(verified) FROM results")[0][0] == 0
 
 
-def test_review_timeout_requeues_and_requires_reapproval(coordinator):
-    seed(coordinator)
+def test_review_delay_preserves_results_and_worker_access(coordinator):
+    first = seed(coordinator)
     pair = worker(coordinator)
     submission(coordinator, pair)
+    assert coordinator[1]("SELECT expires FROM tasks")[0][0] is None
+    # Expiry values left by the old policy must also stop affecting submissions.
     coordinator[1]("UPDATE tasks SET expires=0")
     assert coordinator[2]("expire").returncode == 0
-    assert coordinator[1]("SELECT state FROM tasks")[0][0] == "pending"
-    assert coordinator[1]("SELECT status,verified FROM results")[0] == ("expired", 0)
-    assert claim(coordinator, pair).status_code == 403
-    assert claim(coordinator, worker(coordinator)).json()["task"] is not None
+    assert coordinator[1]("SELECT state FROM tasks")[0][0] == "submitted"
+    assert coordinator[1]("SELECT status,verified FROM results")[0] == ("pending", 0)
+    second = seed(coordinator, 2)
+    assert claim(coordinator, pair).json()["task"] == second
+    assert first["task_id"] != second["task_id"]
 
 
 def test_absolute_lease_cannot_be_renewed_forever(coordinator):
@@ -600,7 +503,7 @@ def adaptive_receipt(service, signed, plan, *, method=None, disposition="accepte
         disposition=disposition,
         review_method=method,
         plan_signature=signed["signature"],
-        audit_probability=0.1,
+        audit_probability=plan["audit_probability"],
         sensitivity_credit=0,
         full_replay_verified=method == "full_replay" and disposition == "accepted",
     )
@@ -611,41 +514,28 @@ def adaptive_receipt(service, signed, plan, *, method=None, disposition="accepte
     return service[2]("accept", path)
 
 
-def test_probation_is_three_audits_per_build_and_plan_cannot_be_rerolled(coordinator):
+def test_new_and_established_workers_get_stable_consistency_plans(coordinator):
     pair = worker(coordinator)
-    for n in range(1, 4):
-        signed, plan = adaptive_submission(coordinator, pair, n)
-        assert plan["mode"] == "full_replay" and plan["reason"] == "probation"
-        assert plan["passed_audits"] == n - 1
+    for n in range(1, 6):
+        signed, plan = adaptive_submission(
+            coordinator, pair, n, source=("a" if n < 5 else "b") * 64
+        )
+        assert plan["mode"] == "consistency"
+        assert plan["audit_probability"] == 0
         assert json.loads(coordinator[2]("review-plan", plan["task_id"]).stdout) == signed
         assert adaptive_receipt(coordinator, signed, plan, method="statistical").returncode != 0
         response = adaptive_receipt(coordinator, signed, plan)
         assert response.returncode == 0, response.stderr
-    signed, plan = adaptive_submission(coordinator, pair, 4)
-    assert plan["passed_audits"] == 3
-    assert plan["mode"] in ("statistical", "full_replay")
-    assert plan["reason"] in ("established_worker", "random_audit")
-    assert adaptive_receipt(coordinator, signed, plan).returncode == 0
-    signed, plan = adaptive_submission(coordinator, pair, 5, source="b" * 64)
-    assert plan["mode"] == "full_replay" and plan["passed_audits"] == 0
 
 
-def test_only_admin_can_grant_local_trust_and_candidate_always_replays(coordinator):
+def test_candidate_flags_do_not_automatically_trigger_replication(coordinator):
     pair = worker(coordinator)
     identity = worker_id_for(coordinator, pair)
     assert call(coordinator, "trust-local", {"worker_id": identity}, pair[0]).status_code != 200
-    assert coordinator[2]("trust-local", identity, "on").returncode == 0
     signed, plan = adaptive_submission(coordinator, pair, 1, candidate=True)
-    assert plan["mode"] == "full_replay" and plan["reason"] == "candidate"
-    assert adaptive_receipt(coordinator, signed, plan, method="trusted_local").returncode != 0
-    assert adaptive_receipt(coordinator, signed, plan, disposition="disagrees").returncode == 0
-    assert coordinator[1]("SELECT status FROM workers")[0][0] == "pending"
-    assert (
-        coordinator[1]("SELECT value FROM settings WHERE key=?", ["trusted_local:" + identity])[0][
-            0
-        ]
-        == "0"
-    )
+    assert plan["mode"] == "consistency" and plan["audit_probability"] == 0
+    assert adaptive_receipt(coordinator, signed, plan).returncode == 0
+    assert coordinator[1]("SELECT status FROM workers")[0][0] == "approved"
 
 
 def test_receipt_cannot_bind_another_plan_and_rotation_removes_local_trust(coordinator):
@@ -882,7 +772,7 @@ def test_full_replay_contract_rejects_an_omitted_candidate(coordinator, monkeypa
     assert coordinator[1]("SELECT status FROM workers")[0][0] == "pending"
 
 
-def test_review_overlap_is_serialized_bounded_and_exports_oldest_first(coordinator):
+def test_review_backlog_preserves_one_active_lease_and_exports_oldest_first(coordinator):
     for number in range(1, 5):
         seed(coordinator, number)
     pair = worker(coordinator)
@@ -895,9 +785,8 @@ def test_review_overlap_is_serialized_bounded_and_exports_oldest_first(coordinat
     second = submission(coordinator, pair)
     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         blocked = list(executor.map(lambda _: claim(coordinator, pair), range(4)))
-    assert all(
-        r.json() == {"task": None, "reason": "awaiting review", "retry_after": 60} for r in blocked
-    )
+    assert all(r.json()["task"] is not None for r in blocked)
+    assert len({r.json()["task_id"] for r in blocked}) == 1
     assert coordinator[1]("SELECT COUNT(*),SUM(verified) FROM results")[0] == (2, 0)
     # Equal timestamps require a deterministic result-id tiebreaker.
     coordinator[1]("UPDATE results SET submitted=1234")
@@ -957,14 +846,23 @@ def test_registration_retry_does_not_release_an_existing_hold(coordinator, held_
     assert coordinator[1]("SELECT COUNT(*),strikes FROM workers")[0] == (1, 3)
 
 
-def test_automatic_registration_retains_per_address_limit_and_idempotency(coordinator):
-    bodies = [{"name": f"participant {i}", "token": secrets.token_hex(32)} for i in range(11)]
+def test_registration_is_automatic_and_idempotent_without_an_address_quota(coordinator):
+    bodies = [{"name": f"participant {i}", "token": secrets.token_hex(32)} for i in range(12)]
     identities = []
-    for body in bodies[:10]:
+    for body in bodies:
         response = call(coordinator, "register", body)
         assert response.status_code == 200
         assert response.json()["approval"] == "approved"
         identities.append(response.json()["worker_id"])
-    assert call(coordinator, "register", bodies[10]).status_code == 429
     assert call(coordinator, "register", bodies[0]).json()["worker_id"] == identities[0]
-    assert coordinator[1]("SELECT COUNT(*) FROM workers")[0][0] == 10
+    assert coordinator[1]("SELECT COUNT(*) FROM workers")[0][0] == 12
+
+
+def test_repeated_expired_leases_do_not_require_registration_again(coordinator):
+    seed(coordinator)
+    pair = worker(coordinator)
+    for _ in range(4):
+        assert claim(coordinator, pair).json()["task"] is not None
+        coordinator[1]("UPDATE tasks SET expires=0")
+    assert claim(coordinator, pair).json()["task"] is not None
+    assert coordinator[1]("SELECT status,strikes FROM workers")[0] == ("approved", 4)

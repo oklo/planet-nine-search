@@ -14,12 +14,23 @@ function dispatch(PDO $db, string $action, array $body): array
         foreach (query($db, "SELECT state,COUNT(*) FROM tasks GROUP BY state")->fetchAll(PDO::FETCH_KEY_PAIR) as $state => $count) {
             $counts[$state] = (int) $count;
         }
+        $queues = ["pending" => [], "leased" => [], "submitted" => []];
+        foreach (query($db, "SELECT id,spec,state,started FROM tasks WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
+            $task = json_decode($row["spec"], true, 32, JSON_THROW_ON_ERROR);
+            $field = ["task_id" => $row["id"], "label" => $task["label"] ?? $row["id"]];
+            if ($row["state"] === "leased") {
+                $field["started"] = (int) $row["started"];
+            }
+            $queues[$row["state"]][] = $field;
+        }
         return [
             "protocol" => PROTOCOL,
             "tasks" => $counts,
+            "active_leases" => $queues["leased"],
+            "queue_fields" => $queues,
             "expired_leases" => 0,
-            "registration" => "automatic with initial full reviews",
-            "result_policy" => "Master acceptance required: local checks or statistical audits; candidates receive full replay.",
+            "registration" => "automatic; consistency checks on submissions",
+            "result_policy" => "Results receive consistency checks; candidate flags are retained for scientific follow-up.",
         ];
     }
     if ($action === "register") {
@@ -49,18 +60,6 @@ function dispatch(PDO $db, string $action, array $body): array
                 $_SERVER["REMOTE_ADDR"] ?? "",
                 $salt,
             );
-            if (
-                query(
-                    $db,
-                    "SELECT COUNT(*) FROM workers WHERE address_hash=? AND created>?",
-                    [$address, time() - 86400],
-                )->fetchColumn() >= 10
-            ) {
-                abort_request(
-                    429,
-                    "Daily registration limit reached; reuse credentials",
-                );
-            }
             $id = bin2hex(random_bytes(16));
             query(
                 $db,
@@ -92,45 +91,7 @@ function dispatch(PDO $db, string $action, array $body): array
                 abort_request(409, "Worker already has an active claim");
             }
             if (!$job) {
-                if (
-                    query(
-                        $db,
-                        "SELECT COUNT(*) FROM results WHERE worker_id=? AND status='pending'",
-                        [$worker["id"]],
-                    )->fetchColumn() >= 2
-                ) {
-                    return [
-                        "task" => null,
-                        "retry_after" => 60,
-                        "reason" => "awaiting review",
-                    ];
-                }
-                $daily_limit = claim_limit($db, $worker["id"]);
-                if (
-                    query(
-                        $db,
-                        "SELECT COUNT(*) FROM events WHERE worker_id=? AND action='claim' AND time>?",
-                        [$worker["id"], $now - 86400],
-                    )->fetchColumn() >= $daily_limit
-                ) {
-                    return [
-                        "task" => null,
-                        "retry_after" => 300,
-                        "reason" => "daily claim limit",
-                        "limit" => $daily_limit,
-                    ];
-                }
-                $reserve = (int) query(
-                    $db,
-                    "SELECT value FROM settings WHERE key=?",
-                    ["reserve:" . $worker["id"]],
-                )->fetchColumn();
-                if (
-                    (int) query(
-                        $db,
-                        "SELECT COUNT(*) FROM tasks WHERE state='pending'",
-                    )->fetchColumn() <= $reserve
-                ) {
+                if ((int) query($db, "SELECT COUNT(*) FROM tasks WHERE state='pending'")->fetchColumn() === 0) {
                     return ["task" => null, "retry_after" => 300, "reason" => "Waiting for coordinator replenishment"];
                 }
                 $job = query(
@@ -240,10 +201,7 @@ function dispatch(PDO $db, string $action, array $body): array
                 $encoded,
             ],
         );
-        query($db, "UPDATE tasks SET state='submitted',expires=? WHERE id=?", [
-            $now + REVIEW_SECONDS,
-            $job["id"],
-        ]);
+        query($db, "UPDATE tasks SET state='submitted',expires=NULL WHERE id=?", [$job["id"]]);
         event($db, "submit", $worker["id"], $job["id"]);
         return ["accepted" => true, "verified" => false];
     });

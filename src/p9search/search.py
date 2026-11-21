@@ -11,7 +11,7 @@ import numpy as np
 from . import __version__, runtime
 from .archive import acquire
 from .calibration import has_source, response_admitted, response_check, unchanged_pixels
-from .foreground import QualityRejected, fit, screen
+from .foreground import QUALITY_METHOD, QualityRejected, fit, screen
 from .injections import inject
 from .policy import check_prior_geometry, screen_rows
 from .provenance import execution_manifest, source_hash
@@ -117,6 +117,7 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
             name: importlib.metadata.version(name)
             for name in ["numpy", "scipy", "torch", "astropy", "tesscube", "lkprf"]
         },
+        "quality_method": QUALITY_METHOD,
         "quality": [],
         "injections": [],
         "verified": False,
@@ -155,7 +156,11 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
             )
             return finish("quality_rejected")
         report["quality"].append(
-            {"sector": int(sector.meta["sector"]), "masked_fraction": quality["masked_fraction"]}
+            {
+                "sector": int(sector.meta["sector"]),
+                "masked_fraction": quality["masked_fraction"],
+                **({"difficulty": quality["difficulty"]} if "difficulty" in quality else {}),
+            }
         )
         screened.append(quality)
         gc.collect()

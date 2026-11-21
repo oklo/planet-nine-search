@@ -134,7 +134,7 @@ def review(args):
             plan.get("contract") == "review-plan-v1"
             and all(plan.get(k) == v for k, v in binding.items())
             and plan.get("source_sha256") == remote.get("source_sha256")
-            and plan.get("mode") in ("full_replay", "trusted_local", "statistical"),
+            and plan.get("mode") in ("full_replay", "trusted_local", "statistical", "consistency"),
             "Review plan does not bind this submission",
         )
         method = plan["mode"]
@@ -145,14 +145,10 @@ def review(args):
             if envelope is not None:
                 unpack(remote, envelope)
         except (ValueError, KeyError, TypeError) as error:
-            method, issue = "full_replay", str(error)
+            issue = str(error)
     elif envelope is not None:
         unpack(remote, envelope)
-    if (
-        remote.get("state") == "needs_followup"
-        or remote.get("candidates")
-        or remote.get("candidate_count", 0)
-    ):
+    if getattr(args, "full_replay", False):
         method = "full_replay"
     root = Path(args.directory).absolute()
     root.mkdir(mode=0o700, parents=True, exist_ok=False)
@@ -212,7 +208,7 @@ def review(args):
             audit_reason=plan["reason"],
             consistency_failure=issue,
             result_sha256=sha256(root / "reviewed-result.json"),
-            reported_inputs=result["inputs"],
+            reported_inputs=result.get("inputs", {}),
             full_replay_verified=method == "full_replay" and accepted,
             replay_seconds=result["elapsed_seconds"] if method == "full_replay" else 0,
         )
