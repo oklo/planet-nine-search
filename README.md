@@ -58,3 +58,9 @@ Pixel masks remove unreliable measurements without rejecting the rest of a field
 Native injections rebuild the same foreground model and masks; only admitted
 recoveries enter sensitivity accounting. Historical results retain their original
 quality policy.
+
+The atlas uses a one-sigma Wilson lower score of the reported injection-recovery
+fraction as a display index. Sparse tests produce lighter shading; repeated prior
+IDs cannot increase it. Older magnitude grids retain their reported counts.
+Opacity is not a calibrated exclusion probability and does not change the
+expectation ledger. Repeated searches require joint accounting of prior samples.

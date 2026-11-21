@@ -2,7 +2,7 @@
 export function recoverySummary(field) {
   if (field.state !== 'complete') return null;
   let recovered = 0, assessed = 0, declared = 0;
-  if (field.injections?.length) {
+  if (field.injections?.length && field.injections.every(row => Number.isInteger(row.reference_index))) {
     const seen = new Set();
     for (const row of field.injections) {
       if (!Number.isInteger(row.reference_index) || seen.has(row.reference_index)) return null;
