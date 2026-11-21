@@ -10,7 +10,6 @@
   --map-galactic: #303843;
   --map-ecliptic: #b66b0c;
   --field-complete: #087e55;
-  --field-followup: #b42d85;
   --field-calibration: #b5771b;
   --field-validation: #a86800;
   --field-preflight: #b44352;
@@ -108,7 +107,6 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
     --map-galactic: #c5ccda;
     --map-ecliptic: #edb975;
     --field-complete: #60d7ad;
-    --field-followup: #f28bc7;
     --field-calibration: #e8bf75;
     --field-validation: #d5a55d;
     --field-preflight: #f38391;
