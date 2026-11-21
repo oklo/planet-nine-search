@@ -15,10 +15,11 @@ p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
 The first start registers the worker and claims an available field automatically.
-No GitHub account or approval request is needed. New workers receive three full
-result reviews per software/device configuration before routine statistical audits.
-Each worker searches one field at a time and may start the next while its previous
-result awaits independent review. Two outstanding results pause new claims.
+No GitHub account or approval request is needed. Each worker downloads one field,
+searches it, submits a compact result, and moves on after acknowledgement.
+There is no daily quota or pause for pending review. The coordinator checks result
+identity, numerical consistency, and diagnostic checksums without repeating the
+search. Full reruns are an explicit diagnostic or scientific follow-up choice.
 Completed image arrays are deleted once compact submission evidence is ready,
 including during network outages. After acknowledgement, only 32 compressed
 receipts remain (at most 256 MiB). Routine interrupted downloads are discarded and
@@ -29,12 +30,9 @@ Routine waits are silent; `work/worker-state.json` records the current state.
 Each search log and the session helper's output log retain at most 1 MiB. The helper
 keeps one bounded previous log. Use `--verbose` for state-change messages or
 `--log-file /private/path/worker.log` to bound output under another service manager.
-Continuous workers retry approval, queue, review, disk and temporary network waits.
+Continuous workers retry queue, disk and temporary network waits.
 Unknown errors, integrity failures, and memory/runtime overruns stop for diagnosis.
-New volunteers receive three
-full reviews per software/device configuration, then 10% random audits. Trusted
-local runs receive consistency checks and occasional audits. Candidates always
-receive full review. Use `p9 status` for queue counts and `p9 --help` for commands. Defaults limit each search to
+Use `p9 status` for queue counts and `p9 --help` for commands. Defaults limit each search to
 24 GiB resident memory and four hours; disk and memory limits are adjustable.
 The 12 GiB allocation covers the work directory. Installation files, the small
 upstream PRF calibration cache, and operating-system swap are separate.

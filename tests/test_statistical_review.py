@@ -111,7 +111,7 @@ def setup_review(tmp_path, mode):
         "spec_sha256": report["spec_sha256"],
         "mode": mode,
         "reason": mode,
-        "audit_probability": 0.1,
+        "audit_probability": 0 if mode == "consistency" else 0.1,
     }
     write_json(tmp_path / "task.json", spec)
     write_json(tmp_path / "submission.json", submission)
@@ -131,7 +131,7 @@ def setup_review(tmp_path, mode):
     return args, spec, report, key
 
 
-@pytest.mark.parametrize("mode", ["trusted_local", "statistical"])
+@pytest.mark.parametrize("mode", ["trusted_local", "statistical", "consistency"])
 def test_light_review_does_not_download_or_replay(tmp_path, monkeypatch, mode):
     args, _, _, key = setup_review(tmp_path, mode)
     monkeypatch.setattr(review, "replay", lambda *a: pytest.fail("Unexpected replay"))
@@ -165,7 +165,7 @@ def test_uploaded_evidence_is_checked_without_changing_scientific_result(
     receipt = review.verify_signed(read_json(args.directory / "receipt.json"), key)
     assert read_json(args.directory / "reviewed-result.json") == report
     assert receipt["disposition"] == ("disagrees" if corrupt else "accepted")
-    assert bool(calls) == corrupt
+    assert not calls
 
 
 def test_local_report_requires_real_matching_local_artifacts(tmp_path, monkeypatch):
@@ -211,7 +211,7 @@ def test_invalid_replay_manifest_cannot_receive_an_acceptance_receipt(tmp_path, 
     assert not (args.directory / "receipt.json").exists()
 
 
-def test_inconsistent_report_escalates_to_replay_and_cannot_be_accepted(tmp_path, monkeypatch):
+def test_inconsistent_report_is_flagged_without_automatic_replay(tmp_path, monkeypatch):
     args, _, report, key = setup_review(tmp_path, "statistical")
     submitted = read_json(args.submission)
     wrong = copy.deepcopy(report)
@@ -226,8 +226,8 @@ def test_inconsistent_report_escalates_to_replay_and_cannot_be_accepted(tmp_path
     monkeypatch.setattr(review, "replay", lambda *a: calls.append(True) or report)
     review.review(args)
     receipt = review.verify_signed(read_json(args.directory / "receipt.json"), key)
-    assert calls == [True] and receipt["disposition"] == "disagrees"
-    assert receipt["review_method"] == "full_replay" and receipt["consistency_failure"]
+    assert calls == [] and receipt["disposition"] == "disagrees"
+    assert receipt["review_method"] == "statistical" and receipt["consistency_failure"]
 
 
 @pytest.mark.parametrize(
@@ -260,3 +260,13 @@ def test_report_checks_do_not_claim_to_detect_consistent_fabrication():
     fabricated["injections"][0]["best_score"] = 100.0
     check_report(spec, fabricated, [source_hash()])
     assert not review.outcomes_agree(fabricated, report)
+
+
+def test_explicit_replay_can_upgrade_a_consistency_check(tmp_path, monkeypatch):
+    args, _, report, key = setup_review(tmp_path, "consistency")
+    args.full_replay = True
+    calls = []
+    monkeypatch.setattr(review, "replay", lambda *a: calls.append(True) or report)
+    review.review(args)
+    receipt = review.verify_signed(read_json(args.directory / "receipt.json"), key)
+    assert calls == [True] and receipt["full_replay_verified"] is True

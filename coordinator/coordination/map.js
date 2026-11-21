@@ -11,17 +11,21 @@ const STATES = {
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
-  recoverable: 'A projection from two benchmark fields, assuming comparable fields remain to search and a 20% chance that planet nine exists. The full searchable sky has not yet been calibrated.',
-  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists. Results use trusted local checks or statistical volunteer audits; field details identify the review method.',
+  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
-  fields: 'All fields shown here, including completed searches, queued fields, and fields stopped by quality checks. Overlapping sector footprints can belong to the same field.',
 };
 const metricInfo = $('metric-info');
 for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
-    $('metric-description').textContent = metricDescriptions[button.dataset.metric];
+    const description = $('metric-description');
+    if (button.dataset.metric === 'recoverable') {
+      description.replaceChildren($('recoverable-copy').content.cloneNode(true));
+      description.querySelector('a').addEventListener('click', () => metricInfo.close());
+    } else {
+      description.textContent = metricDescriptions[button.dataset.metric];
+    }
     metricInfo.showModal();
   });
 }
@@ -237,13 +241,12 @@ function emphasizeField() {
 function selectField(code, zoom = true) {
   selected = code || null;
   selectedSector = null;
-  $('field-select').value = code || '';
   $('clear-selection').hidden = !selected;
   emphasizeField();
+  $('field-panel').hidden = !selected;
   const panel = $('field-details');
   panel.replaceChildren();
   if (!selected) {
-    textNode('p', 'Select a field on the map or use the field menu to inspect its sectors.', panel, 'muted');
     setView(view);
     return;
   }
@@ -363,7 +366,6 @@ sky.addEventListener('keydown', event => {
 });
 $('zoom-in').addEventListener('click', () => zoomAt(1.7));
 $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.7));
-$('field-select').addEventListener('change', event => selectField(event.target.value));
 $('clear-selection').addEventListener('click', () => selectField(null, false));
 for (const button of document.querySelectorAll('[data-region]')) {
   button.addEventListener('click', () => {
@@ -389,18 +391,37 @@ async function updateQueue() {
     const status = await response.json();
     if (!status.tasks || typeof status.tasks !== 'object') throw new Error('Invalid queue status');
     const count = name => Number.isInteger(Number(status.tasks[name] ?? 0)) && Number(status.tasks[name] ?? 0) >= 0 ? Number(status.tasks[name] ?? 0) : 0;
-    const expired = Math.min(count('leased'), Math.max(0, Number(status.expired_leases) || 0));
-    $('queue-status').textContent = `${count('pending') + expired} ready to claim · ${count('leased') - expired} active leases · ${count('submitted')} awaiting verification`;
-    $('queue-time').textContent = `Live queue checked ${new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}. A lease ends at submission while master checks continue.`;
+    if (!status.queue_fields || !['pending', 'leased', 'submitted'].every(key => Array.isArray(status.queue_fields[key]))) throw new Error('Queue lists unavailable');
+    const fieldsByTask = new Map((data?.fields || []).map(field => [field.task_id, field]));
+    for (const [state, heading, listId, label] of [
+      ['submitted', 'verification-heading', 'verification-fields', 'awaiting verification'],
+      ['leased', 'leases-heading', 'active-leases', count('leased') === 1 ? 'active lease' : 'active leases'],
+      ['pending', 'ready-heading', 'ready-fields', 'ready to claim'],
+    ]) {
+      $(heading).textContent = `${count(state)} ${label}`;
+      const list = $(listId);
+      const scrollTop = list.scrollTop;
+      list.replaceChildren();
+      for (const item of status.queue_fields[state]) {
+        const field = fieldsByTask.get(item.task_id);
+        const parts = [field?.code, item.label];
+        if (state === 'leased' && item.started) parts.push('Leased ' + new Date(item.started * 1000).toLocaleString([], {year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'}));
+        textNode('li', parts.filter(Boolean).join(' · '), list);
+      }
+      if (!list.childElementCount) textNode('li', 'None', list, 'muted');
+      list.scrollTop = scrollTop;
+    }
+    $('queue-lists').hidden = false;
+    $('queue-status').hidden = true;
     if (count('audit_hold')) {
       $('recovered-expectation').textContent = 'Under review';
-      $('queue-time').textContent = `${count('audit_hold')} previously accepted fields require reassessment after an audit disagreement.`;
     } else if (data) {
       $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     }
   } catch {
+    $('queue-lists').hidden = true;
+    $('queue-status').hidden = false;
     $('queue-status').textContent = 'Live queue temporarily unavailable';
-    $('queue-time').textContent = 'The published map is still available. Queue status will retry automatically.';
   }
 }
 
@@ -412,13 +433,11 @@ async function initialize() {
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
-    $('followup-count').textContent = data.fields.filter(field => field.state === 'needs_followup').length;
-    metricDescriptions.flags = `These fields contain ${data.physical_followup_flags} tracks awaiting review. One field can contain several tracks.`;
-    $('field-count').textContent = data.fields.length;
+    $('followup-count').textContent = data.physical_followup_flags;
+    metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields are being assessed. Each trace is a trial trajectory selected by the search.`;
     $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
     if (data.expectation_forecast) {
       $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
-      $('forecast-note').textContent = 'The recoverable expectation is the earlier 100 machine-day projection from the initial two-worker benchmark. It assumes new, disjoint fields with comparable brightness and crowding. It is a sparse planning estimate, not a calibrated estimate of the total sky-wide recoverable probability; subsequent fields can change the projected rate.';
     } else {
       $('recoverable-expectation').textContent = 'Not estimated';
     }
@@ -429,10 +448,7 @@ async function initialize() {
       swatch.setAttribute('aria-hidden', 'true');
       item.append(`${info.label} (${data.field_counts[state] || 0})`);
     }
-    for (const field of [...data.fields].sort((a, b) => a.code.localeCompare(b.code, undefined, {numeric: true}))) {
-      textNode('option', `${field.code} · ${STATES[field.state].label}`, $('field-select')).value = field.code;
-    }
-    $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5. This engineering estimate is not a calibrated exclusion probability.`;
+    $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;

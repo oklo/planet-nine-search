@@ -47,7 +47,7 @@ def parser():
     worker.add_argument(
         "--continuous",
         action="store_true",
-        help="keep searching; wait through queue, review and capacity pauses",
+        help="keep searching; wait through queue and capacity pauses",
     )
     worker.add_argument("--verbose", action="store_true", help="print worker state changes")
     worker.add_argument("--log-file", type=Path, help="capture session output in a 1 MiB tail log")
@@ -66,12 +66,13 @@ def parser():
     local = commands.add_parser("run", help="search a downloaded field specification locally")
     local.add_argument("task", type=Path)
     reviewer = commands.add_parser(
-        "review", help="validate a submission using an operator-issued audit plan"
+        "review", help="check a submission or explicitly repeat its search"
     )
     reviewer.add_argument("task", type=Path)
     reviewer.add_argument("submission", type=Path)
     reviewer.add_argument("--key", type=Path, required=True)
     reviewer.add_argument("--plan", type=Path, help="signed plan from admin.php review-plan")
+    reviewer.add_argument("--full-replay", action="store_true", help="explicitly repeat the search")
     reviewer.add_argument(
         "--local-run", type=Path, help="operator-selected trusted local result directory"
     )

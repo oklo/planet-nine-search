@@ -19,35 +19,33 @@ Brown reference CSV; pass its output as `--prior`. Review geometry, motion masks
 and injection choices before enqueueing. Workers allow bundle downloads only
 from `https://oklo.org` unless given another trusted `--bundle-origin`.
 
-Registration automatically admits new workers with one active lease, at most two
-unreviewed results, and at most eight new claims per day by default (operator
-configurable from 1 to 96). Leases renew for at most
-six hours. Unreviewed results expire after 24 hours; the task returns to the
-queue and the worker needs reapproval. Three failed or expired leases also
-require reapproval. Retrying registration preserves existing holds and revocations.
-Registration remains limited to ten new identities per address per day. Worker
-reports never permanently retire tasks.
+Registration is automatic. A worker has one active lease and starts its next
+field after its compact result is acknowledged. Claims depend on available
+fields and the worker's disk budget, with no daily or pending-review quota.
+Leases renew for at most six hours; expired leases return to the queue without
+requiring the worker to register again. Submitted results remain available until
+reviewed. Repeated reported search failures or a demonstrated result inconsistency
+can pause the affected worker for diagnosis. Existing revocations remain in force.
 
 ```sh
 php admin.php requeue TASK_ID "reason"
 php admin.php revoke WORKER_ID
 php admin.php approve WORKER_ID
 php admin.php rotate WORKER_ID /private/replacement-token.txt
-php admin.php reserve WORKER_ID 4
-php admin.php claim-limit WORKER_ID 12
 php admin.php expire
 ```
 
-Rotation invalidates leases and keeps the worker's history and claim limits.
-Reapprove after delivering the replacement token privately. `reserve` leaves
-that many pending tasks for other workers. All state changes have an audit trail.
+Rotation invalidates leases and preserves the worker's history.
+Reapprove after delivering the replacement token privately. State changes have
+an audit trail so actual problems can be investigated.
 
 ## Review
 
-`results` exports submissions. `review-plan TASK_ID` assigns a signed review
-plan after submission: three successful full replays per worker/build/device,
-then a 10% random audit rate. The saved decision is reused on retries. Candidates
-always require full replay. A changed build starts probation again.
+`results` exports submissions. `review-plan TASK_ID` creates a stable, signed
+consistency-check plan. There is no initial replay requirement or random replay
+schedule. Candidate flags are retained for follow-up without automatically
+repeating the search. To investigate a particular result, pass `--full-replay`
+to `p9 review` with its plan.
 
 ```sh
 php admin.php results
@@ -58,23 +56,24 @@ P9_REVIEW_KEY=/private/review.key php admin.php accept review-001/receipt.json
 
 The operator supplies the task and a private 32-byte hexadecimal review key
 (mode 0600). The reviewer checks identity, versions, input manifests, control
-thresholds, and injection arithmetic on every report. Without `--plan`, it runs
+thresholds, and injection arithmetic on every report. Without `--plan`, the manually invoked command runs
 a full replay. Full replay requires the submitted release; `--approved-source`
 can explicitly allow an older release for a lightweight check.
 
 For an operator-controlled machine, `php admin.php trust-local WORKER_ID on`
-allows local verification without probation. Supply `--local-run /path/to/TASK_ID`
+allows verification against operator-selected local files. Supply `--local-run /path/to/TASK_ID`
 to check its retained artifacts; run that worker with `--keep-evidence` until
-review finishes. Local runs also receive 10% random audits.
+review finishes. Local verification does not schedule random replays.
 Never grant this setting to a volunteer or use a path supplied in a submission.
 Rotation and revocation remove local trust.
 
-Receipts record `full_replay`, `trusted_local`, or `statistical`; only the first
-claims independent replay. A failed audit suspends approval, resets probation,
+Receipts record `consistency`, `full_replay`, or `trusted_local`; historical
+`statistical` receipts remain valid. Only `full_replay`
+claims independent replay. A demonstrated inconsistency pauses the affected worker,
 and places unchecked results from that worker/build on `audit_hold` for
 reassessment. Update or withdraw their published sensitivity before resuming
-accounting. Checksums detect changed files, not omitted computation. Statistical
-acceptance is a sampling policy, not proof that every trajectory was searched.
+accounting. Checksums detect changed files, not omitted computation. Consistency checks validate the reported result without independently repeating
+every trajectory.
 Population accounting remains a separate operation; acceptance adds no credit.
 
 Submissions carry compressed diagnostic files and archive provenance inside the

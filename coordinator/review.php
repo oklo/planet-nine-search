@@ -38,27 +38,10 @@ function review_build(array $report): string
         $launch["platform"] ?? "", $launch["python"] ?? ""], JSON_THROW_ON_ERROR));
 }
 
-function review_choice(bool $local, int $passes, bool $candidate, int $draw): array
-{
-    if ($draw < 0 || $draw > 9) {
-        throw new RuntimeException("Invalid audit draw");
-    }
-    if ($candidate) {
-        return ["full_replay", "candidate"];
-    }
-    if (!$local && $passes < 3) {
-        return ["full_replay", "probation"];
-    }
-    if ($draw === 0) {
-        return ["full_replay", "random_audit"];
-    }
-    return $local ? ["trusted_local", "trusted_local"] : ["statistical", "established_worker"];
-}
-
 function review_plan(PDO $db, string $task): string
 {
-    $row = query($db, "SELECT r.*,t.spec,t.expires FROM results r JOIN tasks t ON t.id=r.task_id JOIN workers w ON w.id=r.worker_id WHERE r.task_id=? AND r.status='pending' AND t.state='submitted' AND w.status='approved'", [$task])->fetch(PDO::FETCH_ASSOC);
-    if (!$row || $row["expires"] <= time()) {
+    $row = query($db, "SELECT r.*,t.spec FROM results r JOIN tasks t ON t.id=r.task_id JOIN workers w ON w.id=r.worker_id WHERE r.task_id=? AND r.status='pending' AND t.state='submitted' AND w.status='approved'", [$task])->fetch(PDO::FETCH_ASSOC);
+    if (!$row) {
         throw new RuntimeException("Current approved submission required");
     }
     $name = "review_plan:" . $row["id"];
@@ -68,20 +51,18 @@ function review_plan(PDO $db, string $task): string
     }
     $report = json_decode($row["result"], true, 32, JSON_THROW_ON_ERROR);
     $build = review_build($report);
-    $passes = (int) query($db, "SELECT value FROM settings WHERE key=?", ["audits:" . $row["worker_id"] . ":" . $build])->fetchColumn();
     $local = query($db, "SELECT value FROM settings WHERE key=?", ["trusted_local:" . $row["worker_id"]])->fetchColumn() === "1";
-    $candidate = ($report["state"] ?? "") === "needs_followup" || !empty($report["candidate_count"]) || !empty($report["candidates"]);
-    [$mode, $reason] = review_choice($local, $passes, $candidate, random_int(0, 9));
+    $mode = $local ? "trusted_local" : "consistency";
     $plan = ["contract" => "review-plan-v1", "task_id" => $task,
         "worker_id" => $row["worker_id"], "submission_digest" => $row["digest"],
         "spec_sha256" => hash("sha256", $row["spec"]), "source_sha256" => $report["source_sha256"],
-        "build" => $build, "mode" => $mode, "reason" => $reason,
-        "audit_probability" => 0.1, "passed_audits" => $passes, "created" => time()];
+        "build" => $build, "mode" => $mode, "reason" => "consistency_checks",
+        "audit_probability" => 0, "created" => time()];
     $raw = json_encode($plan, JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     $signed = json_encode(["payload" => base64_encode($raw),
         "signature" => hash_hmac("sha256", $raw, review_key())], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
     setting($db, $name, $signed);
-    event($db, "review-plan", $row["worker_id"], $task, $mode . ":" . $reason);
+    event($db, "review-plan", $row["worker_id"], $task, $mode . ":consistency_checks");
     return $signed;
 }
 
@@ -99,9 +80,9 @@ function check_review_plan(PDO $db, array $result, array $receipt): ?array
     $method = $receipt["review_method"] ?? "";
     if (!hash_equals($signed["signature"], $receipt["plan_signature"] ?? "") ||
         !in_array($method, ["full_replay", $plan["mode"]], true) ||
-        !in_array($method, ["full_replay", "trusted_local", "statistical"], true) ||
+        !in_array($method, ["full_replay", "trusted_local", "statistical", "consistency"], true) ||
         ($receipt["sensitivity_credit"] ?? null) !== 0 ||
-        ($receipt["audit_probability"] ?? null) !== 0.1 ||
+        ($receipt["audit_probability"] ?? null) !== $plan["audit_probability"] ||
         ($receipt["full_replay_verified"] ?? null) !== ($method === "full_replay" && $receipt["disposition"] === "accepted")) {
         throw new RuntimeException("Receipt does not satisfy the assigned review");
     }
