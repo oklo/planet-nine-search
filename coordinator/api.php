@@ -7,6 +7,23 @@ header("X-Content-Type-Options: nosniff");
 
 function dispatch(PDO $db, string $action, array $body): array
 {
+    if ($action === "calibration") {
+        $task = $_GET["task"] ?? "";
+        if (!is_string($task) || !preg_match('/^[a-f0-9]{64}$/D', $task)) {
+            abort_request(400, "Invalid task");
+        }
+        $raw = query($db, "SELECT result FROM results WHERE task_id=? AND status='accepted' AND verified=1 ORDER BY id DESC LIMIT 1", [$task])->fetchColumn();
+        if ($raw === false) {
+            abort_request(404, "No reviewed result");
+        }
+        $report = json_decode($raw, true, 64, JSON_THROW_ON_ERROR);
+        $tests = [];
+        foreach ($report["injections"] ?? [] as $row) {
+            $tests[] = ["label" => $row["label"], "recovered" => $row["recovered"] ?? null, "score" => $row["best_score"] ?? null];
+        }
+        header("Cache-Control: public, max-age=60");
+        return ["cutoff" => $report["control_maximum"] ?? null, "tests" => $tests];
+    }
     // Expiry survives a subsequent rejected request.
     transaction($db, fn() => expire_work($db));
     if ($action === "status") {
@@ -211,8 +228,8 @@ try {
     $action = $_GET["action"] ?? "status";
     $method = $_SERVER["REQUEST_METHOD"] ?? "";
     if (
-        ($action === "status" && $method !== "GET") ||
-        ($action !== "status" && $method !== "POST")
+        (in_array($action, ["status", "calibration"], true) && $method !== "GET") ||
+        (!in_array($action, ["status", "calibration"], true) && $method !== "POST")
     ) {
         abort_request(405, "Wrong HTTP method");
     }

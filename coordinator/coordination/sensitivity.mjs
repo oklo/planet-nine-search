@@ -31,3 +31,23 @@ export function recoverySummary(field) {
     Math.sqrt(p * (1 - p) / declared + .25 / declared ** 2)) / (1 + 1 / declared));
   return {recovered, assessed, declared, strength};
 }
+
+export function testLabel(field) {
+  const samples = (field.depth_samples || []).filter(s => s.tested > 0 && Number.isFinite(s.magnitude));
+  if (!samples.length) {
+    if (field.state === 'queued' || field.state === 'preflight_failed') return 'Search not run';
+    if (field.state === 'needs_followup' || field.state === 'calibration_pending') return 'Recovery tests pending';
+    if (field.state === 'unsearchable') return 'No usable images';
+    if (field.injections?.some(s => s.assessed === false)) return 'No test planet assessed';
+    return field.depth_label && !/no injections recovered/i.test(field.depth_label) ? field.depth_label : 'No test brightness recorded';
+  }
+  const n = samples.reduce((v, s) => v + s.tested, 0);
+  const found = samples.reduce((v, s) => v + s.recovered, 0);
+  const bands = [...new Set(samples.map(s => s.band))];
+  const range = bands.map(b => {
+    const mags = samples.filter(s => s.band === b).map(s => s.magnitude);
+    const lo = Math.min(...mags), hi = Math.max(...mags);
+    return b + ' ' + lo.toFixed(2) + (lo === hi ? '' : '–' + hi.toFixed(2));
+  }).join(', ');
+  return n === 1 ? `1 test planet · ${range} · ${found ? 'found' : 'missed'}` : `${found}/${n} test planets found · ${range}`;
+}
