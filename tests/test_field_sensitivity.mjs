@@ -32,3 +32,13 @@ test('older native reports without prior IDs use their magnitude counts', () => 
   assert.equal(recoverySummary(f).recovered, 1);
   assert.equal(recoverySummary(f).strength, .5);
 });
+
+test('map labels distinguish a measured miss from pending tests', async () => {
+  const {testLabel} = await import('../coordinator/coordination/sensitivity.mjs');
+  const miss = {band: 'V', magnitude: 19.97, tested: 1, recovered: 0};
+  assert.equal(testLabel({state: 'complete', depth_samples: [miss]}), '1 test planet · V 19.97 · missed');
+  assert.equal(testLabel({state: 'calibration_pending'}), 'Recovery tests pending');
+  assert.equal(testLabel({state: 'preflight_failed'}), 'Search not run');
+  assert.equal(testLabel({state: 'complete', injections: [{assessed: false}]}), 'No test planet assessed');
+  assert.equal(testLabel({state: 'complete', depth_samples: [miss, {...miss, magnitude: 21, tested: 2}]}), '0/3 test planets found · V 19.97–21.00');
+});

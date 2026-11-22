@@ -1,4 +1,4 @@
-import {recoverySummary} from './sensitivity.mjs?v=2';
+import {recoverySummary, testLabel} from './sensitivity.mjs?v=3';
 
 'use strict';
 
@@ -101,9 +101,10 @@ function curve(points, attributes, parent) {
 }
 
 function candidateLabel(field) {
-  return Number.isInteger(field.candidate_count)
-    ? `${field.candidate_count} flag${field.candidate_count === 1 ? '' : 's'}`
-    : 'Flags: —';
+  if (field.state === 'queued' || field.state === 'preflight_failed') return '';
+  if (!Number.isInteger(field.candidate_count)) return 'Candidate count unavailable';
+  return field.candidate_count === 0 ? 'No candidate traces' :
+    `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
 }
 
 function insidePolygon([x, y], polygon) {
@@ -127,7 +128,7 @@ function drawMap() {
   for (const field of data.fields) {
     const state = STATES[field.state];
     const group = svgNode('g', {'data-code': field.code}, $('fields'));
-    svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`;
+    svgNode('title', {}, group).textContent = `${field.code} · ${state.label} · ${[testLabel(field), candidateLabel(field)].filter(Boolean).join(' · ')}`;
     if (field.state === 'unsearchable') {
       group.style.opacity = 'var(--assessed-floor)';
       $('fields').prepend(group);
@@ -153,7 +154,7 @@ function drawMap() {
     codeText.textContent = field.code;
     const details = svgNode('g', {class: 'field-depth'}, label);
     const depthText = svgNode('text', {'font-size': 11}, details);
-    depthText.textContent = field.depth_label || 'Depth uncalibrated';
+    depthText.textContent = testLabel(field);
     const countText = svgNode('text', {'font-size': 11}, details);
     countText.textContent = candidateLabel(field);
     const labelWidth = Math.max(...[codeText, depthText, countText].map(n => n.getComputedTextLength())) + 12;
@@ -253,6 +254,23 @@ function emphasizeField() {
   }
 }
 
+async function showTestScores(field, paragraph) {
+  try {
+    const response = await fetch('../api.php?action=calibration&task=' + encodeURIComponent(field.task_id));
+    if (!response.ok) return;
+    const result = await response.json();
+    if (!paragraph.isConnected || !Number.isFinite(result.cutoff) || !field.injections?.length) return;
+    const lookup = new Map(result.tests.map(t => [t.label, t]));
+    if (field.injections.length !== lookup.size || !field.injections.every(t => {
+      const row = lookup.get('prior ' + t.reference_index);
+      return row && row.recovered === t.recovered;
+    })) return;
+    const scores = result.tests.map(t => t.score).filter(Number.isFinite);
+    const best = scores.length ? ` Best test-planet score: ${Math.max(...scores).toFixed(2)}.` : '';
+    paragraph.textContent = `A test planet had to beat ${result.cutoff.toFixed(2)}, the strongest false signal in the control searches.${best}`;
+  } catch { /* The snapshot still contains the brightness and recovery counts. */ }
+}
+
 function selectField(code, zoom = true) {
   selected = code || null;
   selectedSector = null;
@@ -270,14 +288,18 @@ function selectField(code, zoom = true) {
   textNode('h3', `${field.code} · ${field.name}`, panel, 'field-title');
   textNode('p', state.label, panel, 'field-state');
   textNode('p', `RA ${field.ra_deg.toFixed(3)}° · Dec ${field.dec_deg.toFixed(3)}°`, panel, 'field-meta');
-  textNode('p', field.result, panel);
+  if (field.state !== 'complete' || !field.depth_samples?.length) textNode('p', field.result, panel);
   if (Number.isInteger(field.historical_flag_count)) {
     textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
   }
-  textNode('p', `${field.depth_label || 'Depth uncalibrated'} · ${candidateLabel(field)}`, panel, 'field-meta');
+  textNode('p', `${[testLabel(field), candidateLabel(field)].filter(Boolean).join(' · ')}`, panel, 'field-meta');
   const recovery = recoverySummary(field);
-  if (recovery) textNode('p', `${recovery.recovered} recovered / ${recovery.declared} test planets${recovery.assessed < recovery.declared ? ` · ${recovery.declared - recovery.assessed} unassessed` : ''}`, panel, 'field-meta');
-  if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
+  if (recovery && recovery.assessed < recovery.declared) textNode('p', `${recovery.declared - recovery.assessed} additional test planets could not be assessed.`, panel, 'small');
+  if (field.depth_samples?.some(s => s.recovered > 0)) {
+    if (field.depth_label) textNode('p', field.depth_label, panel, 'small');
+  } else if (field.depth_samples?.some(s => s.tested > 0)) {
+    textNode('p', 'These tests did not establish a limiting magnitude.', panel, 'small');
+  } else if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
   if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
   textNode('p', field.state === 'queued' ? 'Planned sector footprints' : 'Sector image footprints', panel, 'small');
   const sectors = textNode('div', '', panel, 'sector-list');
@@ -304,7 +326,11 @@ function selectField(code, zoom = true) {
       textNode('td', `${injection.band} ${injection.magnitude.toFixed(2)}`, row);
       textNode('td', `${injection.recovered} / ${injection.tested}`, row);
     }
-    textNode('p', 'T is the TESS magnitude; V assumes V − T = 0.5. Results combine the field’s searched sectors.', panel, 'small');
+    const explanation = textNode('p', 'A test planet counts as found when its path scores higher than the strongest false signal in the control searches.', panel, 'small');
+    if (field.task_id && field.review_method !== 'trusted_local' && field.state === 'complete') {
+      showTestScores(field, explanation);
+    }
+
   }
   if (zoom) fitPoints(field.footprints.flatMap(p => p.ra_dec_deg), 1.65);
   else setView(view);
