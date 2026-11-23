@@ -39,12 +39,13 @@ Rotation invalidates leases and preserves the worker's history.
 Reapprove after delivering the replacement token privately. State changes have
 an audit trail so actual problems can be investigated.
 
+For field preparation and the handover between hosts, see [Field supply](../docs/controllers.md).
+
 ## Review
 
-`results` exports submissions. `review-plan TASK_ID` creates a stable, signed
-consistency-check plan. There is no initial replay requirement or random replay
-schedule. Candidate flags are retained for follow-up without automatically
-repeating the search. To investigate a particular result, pass `--full-replay`
+`results` exports pending submissions oldest first, ordered by submission time
+and result ID. `review-plan TASK_ID` creates a stable, signed
+consistency-check plan. Flagged candidates go to follow-up. To investigate a particular result, pass `--full-replay`
 to `p9 review` with its plan.
 
 ```sh
@@ -56,8 +57,8 @@ P9_REVIEW_KEY=/private/review.key php admin.php accept review-001/receipt.json
 
 The operator supplies the task and a private 32-byte hexadecimal review key
 (mode 0600). The reviewer checks identity, versions, input manifests, control
-thresholds, and injection arithmetic on every report. Without `--plan`, the manually invoked command runs
-a full replay. Full replay requires the submitted release; `--approved-source`
+thresholds, and injection arithmetic on every report. Without `--plan`,
+`p9 review` runs a full replay. Full replay requires the submitted release; `--approved-source`
 can explicitly allow an older release for a lightweight check.
 
 For an operator-controlled machine, `php admin.php trust-local WORKER_ID on`
@@ -72,8 +73,8 @@ Receipts record `consistency`, `full_replay`, or `trusted_local`; historical
 claims independent replay. A demonstrated inconsistency pauses the affected worker,
 and places unchecked results from that worker/build on `audit_hold` for
 reassessment. Update or withdraw their published sensitivity before resuming
-accounting. Checksums detect changed files, not omitted computation. Consistency checks validate the reported result without independently repeating
-every trajectory.
+accounting. Checksums can identify changed files. Establishing that the
+reported computation took place requires an independent run.
 Population accounting remains a separate operation; acceptance adds no credit.
 
 Submissions carry compressed diagnostic files and archive provenance inside the
@@ -85,7 +86,7 @@ master archive without changing the original accounting.
 ## Deployment and recovery
 
 The audit policy uses the existing v2 database; no schema migration is needed.
-Back up before deploying the PHP files together. For v1, stop claims, back up,
+Back up the database before deployment. For v1, stop claims, back up,
 deploy the current coordinator, then run `migrate`.
 Migration is transactional and retains old tasks/results as `legacy`; publish
 new v2 tasks and explicitly reapprove workers. Historical results are unchanged.
@@ -110,9 +111,3 @@ controls. No credentials or accepted results are served through the public API.
 Tests use disposable databases and concurrent workers. On macOS without PHP,
 use the cached `php:8.2-cli` image:
 `P9_TEST_DOCKER=1 pytest tests/test_coordinator.py --basetemp .pytest_cache/php`.
-
-A worker with one pending result may claim its next field; at two, it retries
-after 60 seconds. `admin.php results` exports pending submissions oldest first, ordered by
-integer `submitted` (Unix seconds) and `result_id`. Review services must handle
-this bounded backlog before enabling the coordinator update. Drain old-source
-reviews before upgrading a pinned replay environment.

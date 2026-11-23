@@ -10,8 +10,8 @@ The bundled observer ephemeris avoids spacecraft-kernel downloads on workers.
    retain native float32 strips. Average good exposures into 30-minute bins;
    flagged-only bins remain flagged. Every completed strip has a checksum.
 2. Fit the Gaia scene, stellar amplitudes, image derivatives, and detector
-   backgrounds. Stop before searching if abrupt-pixel masks exceed 2% of the
-   initially weighted area. Tasks may enable empirical T < 12 stellar templates
+   backgrounds. Mask pixels with persistent jumps in brightness. This quality check stops
+   the search only if a sector has no usable pixels left. Tasks may enable empirical T < 12 stellar templates
    in specified sectors. The same choice applies to baseline and injected data.
 3. Learn 16 noise-weighted temporal modes in four spatial folds. Forward both
    data and source models through the spatial and temporal projections. Native
@@ -34,8 +34,7 @@ The bundled observer ephemeris avoids spacecraft-kernel downloads on workers.
    padded local motion/distance and optical-radius envelopes. It screens both
    real and injected positive proposals; controls remain unfiltered. Rejection
    is conditional on that population, not proof of physical impossibility.
-   These finite
-   control samples do not establish a false-alarm probability.
+   The two controls alone cannot give a false-alarm probability.
 7. Otherwise add each predeclared source to native pixels *before* averaging,
    retaining native float32 rounding and the original noise weights. Refit all
    foreground models. Require a recovered flux increment within 10%, absolute
@@ -48,8 +47,8 @@ The bundled observer ephemeris avoids spacecraft-kernel downloads on workers.
    requires a score above the already frozen control maximum.
 
 `result.json` records the task policy, launch/completion source identities, the
-execution environment, input hashes, quality
-screens, candidate measurements, controls, and assessed injection recoveries.
+execution environment, input hashes,
+quality screens, candidate measurements, controls, and assessed injection recoveries.
 Full proposal tables and selector audits remain beside it. The coordinator
 receives a compact result; it does not receive credentials or image cubes.
 
@@ -66,8 +65,8 @@ validated on real data; CPU kernels are covered by numerical tests. CUDA uses
 the PyTorch path and has not yet been validated on hardware. Disk limits apply
 to the chosen work directory, including retained results; dependency installs
 and third-party caches are additional. A watchdog bounds resident memory and
-wall time; accelerator allocations have a separate cap. The worker never deletes old results
-implicitly. Reuse the same directory after interruption to resume checked rows.
+wall time; accelerator allocations have a separate cap. The continuous worker retries unfinished submissions from the same
+work directory. It normally discards interrupted downloads and fetches them again.
 
 The pinned macOS arm64/Python 3.12 environment is in `environments/`;
 install it with `pip install -r environments/macos-arm64-python312.txt` before
@@ -82,3 +81,12 @@ N68 trajectory by 0.5 magnitude but did not improve N74. Neither result establis
 survey-wide depth or selector completeness. The 24-location/eight-orbit reservoir
 is a bounded proposal rule; its implementation checks do not measure missed-source
 probability. No sensitivity credit is assigned by the worker or coordinator.
+
+## Reading the atlas
+
+For completed fields, fill opacity reflects how many of the declared test
+planets were recovered. The map uses the one-sigma Wilson lower bound, so
+one success in one trial gets a lighter fill than ten successes in ten trials.
+A duplicate reference ID invalidates that field’s display statistic. Older
+magnitude grids use their reported counts. The expectation ledger accounts
+separately for overlapping fields.

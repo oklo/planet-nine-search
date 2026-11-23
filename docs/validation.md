@@ -20,8 +20,6 @@ tesscube 1.2.1, and lkprf 1.1.0.
 - Four newly downloaded native rows and both averaged arrays were bitwise equal
   to the archived reference. Restart verified their hashes and skipped them.
 
-These checks establish port and transport fidelity on the tested data. They do
-not clear the eight candidates, validate CUDA hardware, or calibrate completeness
-and false-alarm probabilities across the survey. Full field specifications and
-result manifests retain input hashes and installed dependency versions so those
-comparisons can be extended.
+This replay tested agreement with the reference implementation on one field.
+The eight flags still required follow-up. Survey completeness, false-alarm
+rates and CUDA performance were outside the scope of this benchmark.
