@@ -7,6 +7,7 @@ if (PHP_SAPI !== "cli") {
 require __DIR__ . "/common.php";
 require __DIR__ . "/task.php";
 require __DIR__ . "/review.php";
+require __DIR__ . "/operator.php";
 umask(0077);
 $action = $argv[1] ?? "";
 $result_schema = "CREATE TABLE results(id INTEGER PRIMARY KEY,task_id TEXT NOT NULL REFERENCES tasks(id),worker_id TEXT NOT NULL REFERENCES workers(id),submitted INTEGER NOT NULL,digest TEXT NOT NULL,result TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',verified INTEGER NOT NULL DEFAULT 0,receipt TEXT);
@@ -107,6 +108,13 @@ if ($action === "init") {
 } else {
     $db = database();
     transaction($db, function () use ($db, $action, $argv) {
+        if (in_array($action, ["operator-status", "operator-claim", "operator-renew", "operator-release"], true)) {
+            operator_session($db, $action, $argv);
+            return;
+        }
+        if (in_array($action, ["add", "review-plan", "accept", "requeue"], true)) {
+            operator_session($db, $action, $argv);
+        }
         if ($action === "review-plan") {
             echo review_plan($db, $argv[2] ?? ""), "\n";
         } elseif ($action === "trust-local") {

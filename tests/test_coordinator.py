@@ -34,16 +34,20 @@ def coordinator(tmp_path):
     server = None
     if php:
 
-        def admin(*args, database_path=None):
+        def admin(*args, database_path=None, fence=""):
             return subprocess.run(
                 [php, str(source / "admin.php"), *map(str, args)],
-                env={**environment, "P9_DATABASE": str(database_path or database)},
+                env={
+                    **environment,
+                    "P9_DATABASE": str(database_path or database),
+                    "P9_OPERATOR_FENCE": fence,
+                },
                 capture_output=True,
                 text=True,
             )
     else:
 
-        def admin(*args, database_path=None):
+        def admin(*args, database_path=None, fence=""):
             converted = [str(a).replace(str(tmp_path), "/state") for a in args]
             return subprocess.run(
                 [
@@ -68,6 +72,8 @@ def coordinator(tmp_path):
                     + str(database_path or database).replace(str(tmp_path), "/state"),
                     "-e",
                     "P9_REVIEW_KEY=/state/review.key",
+                    "-e",
+                    "P9_OPERATOR_FENCE=" + fence,
                     "php:8.2-cli",
                     "php",
                     "/app/admin.php",
@@ -877,3 +883,18 @@ def test_repeated_expired_leases_do_not_require_registration_again(coordinator):
         coordinator[1]("UPDATE tasks SET expires=0")
     assert claim(coordinator, pair).json()["task"] is not None
     assert coordinator[1]("SELECT status,strikes FROM workers")[0] == ("approved", 4)
+
+
+def test_operator_handover_checks_checkpoint_and_fences_prior_owner(coordinator):
+    admin = coordinator[2]
+    current = json.loads(admin("operator-status").stdout)["checkpoint"]
+    one, two = secrets.token_hex(32), secrets.token_hex(32)
+    args = [str(current["last_review"]), current["snapshot"] or "-"]
+    assert admin("operator-claim", "travel", *args, fence=one).returncode == 0
+    assert admin("operator-claim", "home", *args, fence=two).returncode
+    assert admin("operator-release", fence=one).returncode == 0
+    assert admin("operator-claim", "home", "999", args[1], fence=two).returncode
+    assert admin("operator-claim", "home", *args, fence=two).returncode == 0
+    assert admin("operator-renew", fence=one).returncode
+    assert admin("operator-renew", fence=two).returncode == 0
+    assert "Current operator lease required" in admin("review-plan", "missing", fence=one).stderr

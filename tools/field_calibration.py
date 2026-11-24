@@ -61,13 +61,15 @@ def main():
     budget = DiskBudget(args.out, 12 * GIB, 20 * GIB)
     with tempfile.TemporaryDirectory(dir=args.out) as temp:
         root = Path(temp)
+        original = args.out / "inputs"
+        original.mkdir(exist_ok=True)
         bundle = args.task.with_name("field.zip")
         if bundle.exists():
             if sha256(bundle) != spec["bundle_sha256"]:
                 raise ValueError("Local bundle differs from task")
-            (root / "original").mkdir()
-            os.link(bundle, root / "original" / "field.zip")
-        data = fetch_bundle(spec, root / "original", budget)
+            if not (original / "field.zip").exists():
+                os.link(bundle, original / "field.zip")
+        data = fetch_bundle(spec, original, budget)
         geom = [data / f"s{s:04d}" for s in sorted(spec["sectors"])]
         if [sha256(d / "geometry.npz") for d in geom] != design["geometry_sha256"]:
             raise ValueError("Geometry differs from frozen design")
@@ -91,10 +93,14 @@ def main():
             rng = np.random.default_rng([design["seed"], i])
             with tempfile.TemporaryDirectory(dir=root) as stage:
                 stage = Path(stage)
-                os.link(root / "original" / "field.zip", stage / "field.zip")
+                os.link(original / "field.zip", stage / "field.zip")
                 trial = fetch_bundle(spec, stage, budget)
                 for d in geom:
                     dest = trial / d.name
+                    if label == "injection":
+                        (dest / "strips").mkdir()
+                        for strip in (d / "strips").glob("*-native.npy"):
+                            os.link(strip, dest / "strips" / strip.name)
                     keep = np.load(d / "geometry.npz")
                     permutation = shifts(keep["time"], keep["keep"].astype(bool), rng)
                     for name in ("raw.npy", "error.npy"):
@@ -136,6 +142,12 @@ def main():
                 write_json(target, dict(protocol=identity, **measurement))
                 gc.collect()
                 print(arm, flush=True)
+    # The directory was populated and verified by fetch_bundle/acquire.
+    # Keep the compact study records; these inputs are reproducible.
+    if original.is_dir() and not original.is_symlink():
+        for d in geom:
+            for item in [d / "raw.npy", d / "error.npy", *(d / "strips").glob("*-native.npy")]:
+                item.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

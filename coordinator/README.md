@@ -116,3 +116,10 @@ after 60 seconds. `admin.php results` exports pending submissions oldest first, 
 integer `submitted` (Unix seconds) and `result_id`. Review services must handle
 this bounded backlog before enabling the coordinator update. Drain old-source
 reviews before upgrading a pinned replay environment.
+
+
+### Operator handover
+
+Stop the outgoing supplier, reviewer and publisher. Read `php admin.php operator-status` and reconcile the last reviewed result and snapshot digest with the incoming host. Set `P9_OPERATOR_FENCE` to a fresh private 64-character hex token on the incoming operator. Run `php admin.php operator-claim HOST LAST_REVIEW SNAPSHOT_SHA256` with the reconciled values. Renew with `operator-renew` at least every five minutes. Release with `operator-release` after stopping writes.
+
+After first enrollment the coordinator requires the current token for enqueue, requeue, review-plan and acceptance. Expiry leaves those operations closed until another claim. Workers continue claiming and returning fields. Website publication still needs its snapshot digest check.
