@@ -61,6 +61,12 @@ def main():
     budget = DiskBudget(args.out, 12 * GIB, 20 * GIB)
     with tempfile.TemporaryDirectory(dir=args.out) as temp:
         root = Path(temp)
+        bundle = args.task.with_name("field.zip")
+        if bundle.exists():
+            if sha256(bundle) != spec["bundle_sha256"]:
+                raise ValueError("Local bundle differs from task")
+            (root / "original").mkdir()
+            os.link(bundle, root / "original" / "field.zip")
         data = fetch_bundle(spec, root / "original", budget)
         geom = [data / f"s{s:04d}" for s in sorted(spec["sectors"])]
         if [sha256(d / "geometry.npz") for d in geom] != design["geometry_sha256"]:
@@ -85,6 +91,7 @@ def main():
             rng = np.random.default_rng([design["seed"], i])
             with tempfile.TemporaryDirectory(dir=root) as stage:
                 stage = Path(stage)
+                os.link(root / "original" / "field.zip", stage / "field.zip")
                 trial = fetch_bundle(spec, stage, budget)
                 for d in geom:
                     dest = trial / d.name
