@@ -898,3 +898,23 @@ def test_operator_handover_checks_checkpoint_and_fences_prior_owner(coordinator)
     assert admin("operator-renew", fence=one).returncode
     assert admin("operator-renew", fence=two).returncode == 0
     assert "Current operator lease required" in admin("review-plan", "missing", fence=one).stderr
+
+
+def test_ranged_fields_require_worker_support(coordinator):
+    task = seed(coordinator)
+    task["policy"] = {"distance_au": [300, 1500]}
+    coordinator[1]("UPDATE tasks SET spec=? WHERE id=?", [json.dumps(task), task["task_id"]])
+    participant = worker(coordinator)
+    assert claim(coordinator, participant).json()["task"] is None
+    capable = call(
+        coordinator,
+        "claim",
+        dict(
+            protocol=task["protocol"],
+            available_bytes=1000,
+            lease_token=participant[1],
+            field_distance_range=True,
+        ),
+        participant[0],
+    )
+    assert capable.json()["task"] == task

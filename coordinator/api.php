@@ -121,7 +121,9 @@ function dispatch(PDO $db, string $action, array $body): array
                     [$budget, ($body["field_distance_range"] ?? false) === true ? 1 : 0, $worker["id"]],
                 )->fetch(PDO::FETCH_ASSOC);
                 if (!$job) {
-                    return ["task" => null, "retry_after" => 300, "reason" => "No ready field is eligible for this worker"];
+                    $fits = query($db, "SELECT 1 FROM tasks WHERE state='pending' AND required_bytes<=? LIMIT 1", [$budget])->fetchColumn();
+                    $reason = $fits ? "No ready field is eligible for this worker" : "No ready field fits this worker's disk allocation";
+                    return ["task" => null, "retry_after" => 300, "reason" => $reason];
                 }
                 query(
                     $db,
