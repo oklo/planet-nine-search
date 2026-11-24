@@ -1,0 +1,135 @@
+"""Offline native injections and time-shift controls. Writes no coordinator result."""
+
+import argparse
+import gc
+import os
+import tempfile
+from pathlib import Path
+from unittest.mock import patch
+
+import numpy as np
+
+from p9search import runtime, search
+from p9search.policy import default_policy
+from p9search.provenance import source_hash
+from p9search.storage import GIB, DiskBudget, read_json, sha256, write_json
+from p9search.tasks import PROTOCOL, fetch_bundle, task_id
+
+
+def shifts(times, keep, rng):
+    index = np.arange(len(times))
+    for segment in np.split(index, np.flatnonzero(np.diff(times) > 1) + 1):
+        valid = segment[keep[segment]]
+        if len(valid) >= 4:
+            offset = rng.integers(max(1, len(valid) // 4), 1 + 3 * len(valid) // 4)
+            index[valid] = np.roll(valid, offset)
+    return index
+
+
+class NullMeasured(Exception):
+    pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("task", type=Path)
+    parser.add_argument("design", type=Path)
+    parser.add_argument("out", type=Path)
+    parser.add_argument("--nulls", type=int, default=64)
+    args = parser.parse_args()
+    if not 1 <= args.nulls <= 10000:
+        parser.error("Choose 1 to 10000 time-shift controls")
+    args.out.mkdir(parents=True, exist_ok=True)
+    design = read_json(args.design)
+    spec = read_json(args.task)
+    if spec["reference_sector"] != design["reference_sector"]:
+        raise ValueError("Reference sector differs from the calibration design")
+    spec.update(protocol=PROTOCOL, policy=spec.get("policy", default_policy()), injections=[])
+    spec["task_id"] = task_id(spec)
+    identity = dict(
+        task=sha256(args.task),
+        design=sha256(args.design),
+        source=source_hash(),
+        experiment=sha256(Path(__file__)),
+        nulls=args.nulls,
+    )
+    freeze = args.out / "protocol.json"
+    if freeze.exists() and read_json(freeze) != identity:
+        raise ValueError("Calibration inputs changed")
+    write_json(freeze, identity)
+    runtime.configure("cpu", 1)
+    budget = DiskBudget(args.out, 12 * GIB, 20 * GIB)
+    with tempfile.TemporaryDirectory(dir=args.out) as temp:
+        root = Path(temp)
+        data = fetch_bundle(spec, root / "original", budget)
+        geom = [data / f"s{s:04d}" for s in sorted(spec["sectors"])]
+        if [sha256(d / "geometry.npz") for d in geom] != design["geometry_sha256"]:
+            raise ValueError("Geometry differs from frozen design")
+        for d in geom:
+            search.acquire(d, budget, lambda *a, **kw: None)
+        n = len(design["injections"])
+        threshold = search.control_threshold
+        for arm in [
+            *(f"injection-{i}" for i in range(0, n, 8)),
+            *(f"null-{i}" for i in range(args.nulls)),
+        ]:
+            target = args.out / f"{arm}.json"
+            if target.exists():
+                if read_json(target)["protocol"] != identity:
+                    raise ValueError("Existing measurement belongs to another calibration")
+                continue
+            label, i = arm.split("-")
+            i = int(i)
+            spec["injections"] = design["injections"][i : i + 8] if label == "injection" else []
+            spec["task_id"] = task_id(spec)
+            rng = np.random.default_rng([design["seed"], i])
+            with tempfile.TemporaryDirectory(dir=root) as stage:
+                stage = Path(stage)
+                trial = fetch_bundle(spec, stage, budget)
+                for d in geom:
+                    dest = trial / d.name
+                    keep = np.load(d / "geometry.npz")
+                    permutation = shifts(keep["time"], keep["keep"].astype(bool), rng)
+                    for name in ("raw.npy", "error.npy"):
+                        if label == "injection":
+                            os.link(d / name, dest / name)
+                        else:
+                            values = np.load(d / name, mmap_mode="r")
+                            copied = np.lib.format.open_memmap(
+                                dest / name, "w+", values.dtype, values.shape
+                            )
+                            for t in range(0, len(values), 32):
+                                copied[t : t + 32] = values[permutation[t : t + 32]]
+                            del copied
+                measurement = {}
+
+                def measure(arms):
+                    limit, flags, maxima = threshold(arms)
+                    measurement["baseline_flags"] = len(flags)
+                    if label == "null":
+                        scores = [
+                            r["native"]["coherent_score"]
+                            for r in arms["physical"]
+                            if r["native"]
+                            and r.get("prior", {}).get("eligible_for_p9_followup", True)
+                        ]
+                        measurement["maximum"] = max(scores, default=None)
+                        raise NullMeasured()
+                    return limit, [], maxima  # Measure injection recovery even in a flagged field.
+
+                with (
+                    patch.object(search, "acquire", lambda *a: None),
+                    patch.object(search, "control_threshold", measure),
+                ):
+                    try:
+                        report = search.run(spec, stage, budget)
+                        measurement.update(state=report["state"], injections=report["injections"])
+                    except NullMeasured:
+                        pass
+                write_json(target, dict(protocol=identity, **measurement))
+                gc.collect()
+                print(arm, flush=True)
+
+
+if __name__ == "__main__":
+    main()

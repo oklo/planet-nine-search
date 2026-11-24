@@ -8,6 +8,16 @@ import time
 from pathlib import Path
 
 
+def last_worker_activity(path, state):
+    updated = float(state.get("updated", 0))
+    task = state.get("task_id", "")
+    if len(task) == 64 and all(c in "0123456789abcdef" for c in task):
+        progress = path.parent / task / "progress.json"
+        if progress.exists():
+            updated = max(updated, progress.stat().st_mtime)
+    return updated
+
+
 def issues(worker, publication, reviewer, now):
     problems = set()
     for name, path, timestamp in (
@@ -17,7 +27,9 @@ def issues(worker, publication, reviewer, now):
     ):
         try:
             record = json.loads(path.read_text())
-            age = now - float(record[timestamp])
+            age = now - (
+                last_worker_activity(path, record) if name == "worker" else float(record[timestamp])
+            )
             if record.get("state") in {
                 "held",
                 "stopped",
@@ -79,7 +91,7 @@ def main():
                 state = {}
             busy = (
                 state.get("state") in {"searching", "submitting"}
-                and time.time() - state.get("updated", 0) < 300
+                and time.time() - last_worker_activity(args.worker, state) < 900
             )
             if busy and (assertion is None or assertion.poll() is not None):
                 assertion = subprocess.Popen(["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())])
