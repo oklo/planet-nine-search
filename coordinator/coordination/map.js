@@ -14,7 +14,7 @@ const STATES = {
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
-  recovered: 'Sensitivity accumulated in completed searches, estimated by adding test planets to the data and checking which we recover. Weighted by the Brown–Batygin orbit sample and a 20% chance that planet nine exists.',
+  recovered: 'Sensitivity from fields whose searches were independently rerun. The calculation weights recovered test planets by the Brown–Batygin orbit sample and adopts a 20% chance that planet nine exists.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
 };
@@ -459,7 +459,7 @@ async function updateQueue() {
     if (count('audit_hold')) {
       $('recovered-expectation').textContent = 'Under review';
     } else if (data) {
-      $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
+      $('recovered-expectation').textContent = data.sensitivity_proxy.by_validation?.full_replay?.toPrecision(4) ?? 'Unavailable';
     }
   } catch {
     $('queue-lists').hidden = true;
@@ -478,7 +478,7 @@ async function initialize() {
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
     metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields await follow-up. A trace is a possible path across the images along which the search found excess light. Several traces can come from the same star.`;
-    $('recovered-expectation').textContent = data.sensitivity_proxy.value.toPrecision(4);
+    $('recovered-expectation').textContent = data.sensitivity_proxy.by_validation?.full_replay?.toPrecision(4) ?? 'Unavailable';
     if (data.expectation_forecast) {
       $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
     } else {
@@ -499,7 +499,9 @@ async function initialize() {
         item.append(`${info.label} (${count})`);
       }
     }
-    $('proxy-note').textContent = `The current finite-prior sensitivity proxy is ${data.sensitivity_proxy.value.toPrecision(4)} expected planets, using P(existence) = 0.2 and V − T = 0.5.`;
+    const labels = {full_replay: 'Fully replayed', consistency: 'Consistency checks', statistical: 'Statistical checks', trusted_local: 'Local checks', historical: 'Historical'};
+    const tiers = Object.entries(data.sensitivity_proxy.by_validation || {}).map(([key, value]) => `${labels[key] || key} ${value.toPrecision(3)}`);
+    $('proxy-note').textContent = `${tiers.join(' · ')}. Total ${data.sensitivity_proxy.value.toPrecision(4)} expected planets. The calculation assumes a 20% existence probability and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;

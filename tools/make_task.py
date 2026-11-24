@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+from freeze_detector_metadata import freeze
 
 from p9search.bundles import ARRAYS, validate_bundle
 from p9search.catalog import catalog
@@ -35,6 +36,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--empirical-star-sectors", type=int, nargs="*", default=[])
     parser.add_argument("--prior", type=Path, help="Reviewed local-brown-prior-v1 context JSON")
+    parser.add_argument("--detector-cache", type=Path, help="reuse CCD-wide bright-star queries")
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.out) as temporary:
@@ -66,6 +68,7 @@ def main():
                 required += (
                     (len(cadences["native_time"]) + 4 * len(cadences["time"])) * 140 * 140 * 4
                 )
+        freeze(staging, args.reference, args.sectors, args.detector_cache)
         # Publish only arrays consumed by the worker, without catalog annotations.
         for path in staging.rglob("*.npz"):
             keys = ARRAYS.get(path.name, {"time": None, "position": None})

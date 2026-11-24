@@ -75,3 +75,34 @@ def serve(cycle, lock_path, report):
     while True:
         mode = tick(cycle, lock_path, report)
         time.sleep(3 if mode in ADVANCING else 90)
+
+
+def publication_failure(error, integrity_errors, previous, now):
+    if isinstance(error, integrity_errors):
+        return dict(state="held", checked_epoch=now, reason=str(error)[:400])
+    attempts = previous.get("attempts", 0) + 1
+    delay = min(600, 20 * 2 ** min(attempts - 1, 5))
+    return dict(
+        state="retry",
+        checked_epoch=now,
+        attempts=attempts,
+        retry_after_epoch=now + delay,
+        reason=str(error)[:400],
+    )
+
+
+def interrupted_reservations(entries, routes):
+    """Protect nominal as well as actual sample IDs during a partial preparation."""
+    reserved = set()
+    incomplete = set()
+    for entry in entries:
+        if entry.get("state") in {"preparing", "metadata_complete"}:
+            incomplete.add(int(entry["field"]))
+            for key in ("nominal_reference_ids", "reference_ids"):
+                reserved.update(map(int, entry.get(key, [])))
+    if incomplete:
+        for rows in routes():
+            for row in rows:
+                if int(row["field"]) in incomplete:
+                    reserved.update(map(int, row.get("new_reference_ids", [])))
+    return reserved

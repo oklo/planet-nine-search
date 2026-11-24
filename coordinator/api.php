@@ -113,8 +113,11 @@ function dispatch(PDO $db, string $action, array $body): array
                 }
                 $job = query(
                     $db,
-                    "SELECT * FROM tasks WHERE state='pending' AND required_bytes<=? ORDER BY priority DESC,id LIMIT 1",
-                    [$budget],
+                    "SELECT * FROM tasks WHERE state='pending' AND required_bytes<=? AND NOT EXISTS
+                         (SELECT 1 FROM events e WHERE e.worker_id=? AND e.task_id=tasks.id AND e.action='field_data_failure'
+                          AND e.id>COALESCE((SELECT MAX(id) FROM events WHERE task_id=tasks.id AND action='operator_retry'),0))
+                         ORDER BY priority DESC,id LIMIT 1",
+                    [$budget, $worker["id"]],
                 )->fetch(PDO::FETCH_ASSOC);
                 if (!$job) {
                     return ["task" => null, "retry_after" => 300, "reason" => "No ready field fits this worker's disk allocation"];
@@ -177,6 +180,18 @@ function dispatch(PDO $db, string $action, array $body): array
                 0,
                 500,
             );
+            if (($body["field_data_failure"] ?? false) === true && !empty($body["failed"])) {
+                event($db, "field_data_failure", $worker["id"], $job["id"], $reason);
+                $count = (int) query($db, "SELECT COUNT(DISTINCT task_id) FROM events
+                    WHERE worker_id=? AND action='field_data_failure' AND id>COALESCE(
+                    (SELECT MAX(id) FROM events WHERE worker_id=? AND action IN ('submit','approve')),0)",
+                    [$worker["id"], $worker["id"]])->fetchColumn();
+                if ($count >= 3) {
+                    query($db, "UPDATE workers SET status='pending' WHERE id=?", [$worker["id"]]);
+                }
+                requeue($db, $job["id"], $reason);
+                return ["released" => true, "quarantined_for_worker" => true, "worker_held" => $count >= 3];
+            }
             if (!empty($body["failed"])) {
                 query($db, "UPDATE tasks SET failures=failures+1 WHERE id=?", [
                     $job["id"],

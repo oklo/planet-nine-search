@@ -13,6 +13,7 @@ import requests
 from .client import Client, CoordinatorError
 from .diagnostics import BoundedOutput, State
 from .evidence import pack
+from .limits import FieldDataError
 from .network import TransportError
 from .provenance import installed_dependencies
 from .retention import discard_interrupted, maintain, release_pixels
@@ -251,6 +252,10 @@ def _work(args, budget, credentials, state):
                                 )
                             next_heartbeat = time.monotonic() + 60
                         time.sleep(2)
+                    if child.returncode == 65:
+                        raise FieldDataError(
+                            f"Field lacks usable data; inspect {folder / 'worker.log'}"
+                        )
                     if child.returncode == 73:
                         raise DiskCapacityError(
                             "Search reached its disk allocation or free-space reserve"
@@ -274,10 +279,16 @@ def _work(args, budget, credentials, state):
                 failed=not (recoverable or isinstance(error, KeyboardInterrupt)),
                 reason=str(error)[:1024],
             )
+            if isinstance(error, FieldDataError):
+                body["field_data_failure"] = True
+                write_json(
+                    folder / "field-data-failure.json", {"task_id": spec["task_id"], "exit": 65}
+                )
+            reply = {}
             try:
-                retry_request(
+                reply = retry_request(
                     lambda: client.request("release", body),
-                    args.continuous and recoverable,
+                    args.continuous and (recoverable or isinstance(error, FieldDataError)),
                     state,
                 )
                 client.clear_claim()
@@ -288,6 +299,19 @@ def _work(args, budget, credentials, state):
                     raise
             except requests.RequestException:
                 pass  # A stopped worker's unreachable lease will expire.
+            if (
+                isinstance(error, FieldDataError)
+                and args.continuous
+                and reply.get("quarantined_for_worker")
+            ):
+                if not keep_data:
+                    with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
+                        discard_interrupted(folder)
+                if reply.get("worker_held"):
+                    raise RuntimeError(
+                        "Three distinct fields failed consecutively; inspect this worker"
+                    ) from error
+                continue
             if not (args.continuous and recoverable):
                 raise
             wait = 300 if capacity_error(error) else 60

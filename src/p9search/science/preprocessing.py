@@ -7,6 +7,7 @@ import torch
 from scipy.linalg import cho_factor, cho_solve
 from scipy.ndimage import binary_dilation
 
+from ..limits import FieldDataError
 from ..runtime import device
 
 
@@ -78,7 +79,7 @@ def temporal_reference(cube, t, keep, gap=1.5, outer=3.0, knot_days=0.25):
     for knot in knots:
         use = keep & (abs(t - knot) >= gap) & (abs(t - knot) <= outer)
         if use.sum() < 5:
-            raise ValueError("Insufficient gapped-reference data")
+            raise FieldDataError("Insufficient gapped-reference data")
         selected = cube[use]
         medians.append(
             (np.median if np.isfinite(selected).all() else np.nanmedian)(selected, axis=0)

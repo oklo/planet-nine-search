@@ -8,7 +8,7 @@ from contextlib import nullcontext
 from pathlib import Path
 
 from .client import DEFAULT_COORDINATOR, Client
-from .limits import ResourceGuard
+from .limits import FieldDataError, ResourceGuard
 from .network import DEFAULT_ORIGINS, TransportError, transport_error
 from .storage import (
     GIB,
@@ -171,6 +171,9 @@ def execute(args):
     except DiskCapacityError as error:
         print(f"p9: {error}", file=sys.stderr)
         return 73
+    except FieldDataError as error:
+        print(f"p9: {error}", file=sys.stderr)
+        return 65
     except TransportError as error:
         print(f"p9: {error}", file=sys.stderr)
         return 69

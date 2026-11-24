@@ -45,3 +45,7 @@ class ResourceGuard:
     def __exit__(self, *exc):
         self.done.set()
         self.thread.join()
+
+
+class FieldDataError(ValueError):
+    """The verified input lacks usable data for this search."""

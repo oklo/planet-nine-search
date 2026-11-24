@@ -56,3 +56,20 @@ def test_busy_producer_leaves_status_alone(tmp_path):
     cycle.side_effect = BlockingIOError("catalog busy")
     assert tick(cycle, path, report) == "retry"
     assert "catalog busy" in report.call_args.args[0]["error"]
+
+
+def test_interrupted_field_does_not_block_unrelated_samples():
+    from tools.field_controller import interrupted_reservations
+
+    entries = [dict(field=1, state="preparing", reference_ids=[15])]
+    routes = [[dict(field=1, new_reference_ids=[42]), dict(field=2, new_reference_ids=[77])]]
+    assert interrupted_reservations(entries, lambda: routes) == {15, 42}
+
+
+def test_publication_retries_transport_and_holds_changed_hash():
+    from tools.field_controller import publication_failure
+
+    first = publication_failure(OSError("offline"), (ValueError,), {}, 100)
+    assert first["retry_after_epoch"] == 120
+    assert publication_failure(OSError(), (ValueError,), first, 120)["retry_after_epoch"] == 160
+    assert publication_failure(ValueError("digest"), (ValueError,), first, 120)["state"] == "held"

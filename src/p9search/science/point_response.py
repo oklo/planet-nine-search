@@ -9,7 +9,11 @@ import numpy as np
 def _prf(camera, ccd, sector):
     from lkprf import TESSPRF
 
-    return TESSPRF(camera=camera, ccd=ccd, sector=sector)
+    from .prf_cache import cache_directory
+
+    return TESSPRF(
+        camera=camera, ccd=ccd, sector=sector, cache_dir=cache_directory(camera, ccd, sector)
+    )
 
 
 def tess_pixel_model(x, y, metadata, radius=3):
