@@ -9,6 +9,8 @@ The noise model remains conditional and requires empirical tail calibration.
 import numpy as np
 from scipy.ndimage import gaussian_filter
 
+from ..limits import FieldDataError
+
 
 def separable_weights(weight, keep):
     weight = np.asarray(weight)
@@ -83,7 +85,7 @@ class SceneProjector:
         if np.any(self.time_weight < 0) or np.any(self.pixel_weight < 0):
             raise ValueError("Negative weight")
         if self.time_weight.sum() <= 0:
-            raise ValueError("No exposure weight")
+            raise FieldDataError("No exposure weight")
         valid = np.isfinite(data[self.time_weight > 0]).all(axis=0)
         self.pixel_weight = np.where(valid, self.pixel_weight, 0.0)
         a = np.nan_to_num(np.asarray(design, float))

@@ -291,6 +291,17 @@ def test_repeated_failures_suspend_worker_without_retiring_task(coordinator):
     assert claim(coordinator, worker(coordinator)).json()["task"] == task
 
 
+def test_data_failure_quarantine_is_per_worker(coordinator):
+    task = seed(coordinator)
+    first = worker(coordinator)
+    assert claim(coordinator, first).json()["task"] == task
+    body = dict(task_id=task["task_id"], lease_token=first[1], failed=True, field_data_failure=True)
+    reply = call(coordinator, "release", body, first[0]).json()
+    assert reply["quarantined_for_worker"] and not reply["worker_held"]
+    assert claim(coordinator, first).json()["task"] is None
+    assert claim(coordinator, worker(coordinator)).json()["task"] == task
+
+
 def test_voluntary_releases_do_not_exhaust_failure_budget(coordinator):
     task = seed(coordinator)
     pair = worker(coordinator)

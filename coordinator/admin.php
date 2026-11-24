@@ -192,6 +192,7 @@ if ($action === "init") {
                 throw new RuntimeException("Current task and reason required");
             }
             requeue($db, $id, $reason);
+            event($db, "operator_retry", null, $id, $reason);
             echo "Requeued\n";
         } elseif ($action === "expire") {
             expire_work($db);

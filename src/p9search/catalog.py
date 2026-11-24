@@ -12,18 +12,23 @@ from astropy.wcs import WCS
 from .storage import canonical, read_json
 
 
-def catalog(directory):
+def catalog(directory, *, detector=False):
     meta = read_json(directory / "metadata.json")
     wcs = WCS(fits.Header.fromtextfile(directory / "wcs.txt"))
     corners = np.array([[-8, -8], [148, -8], [148, 148], [-8, 148]], float)
     origin = [meta["origin_column"], meta["origin_row"]]
-    sky = wcs.all_pix2world(corners + origin, 1)
+    pixels = (
+        np.array([[45, 1], [2092, 1], [2092, 2048], [45, 2048]]) if detector else corners + origin
+    )
+    sky = wcs.all_pix2world(pixels, 1)
     polygon = ",".join(f"{v:.9f}" for v in sky.ravel())
     query = (
         "SELECT source_id,ra,dec,pmra,pmdec,ref_epoch,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag "
         "FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),"
         f"POLYGON('ICRS',{polygon})) AND phot_g_mean_mag IS NOT NULL"
     )
+    if detector:
+        query += " AND phot_g_mean_mag < 13"
     for endpoint in [
         "https://gea.esac.esa.int/tap-server/tap/sync",
         "https://gaia.ari.uni-heidelberg.de/tap/sync",
@@ -68,6 +73,17 @@ def catalog(directory):
     g = values("phot_g_mean_mag")
     tmag = g - 0.00522555 * color**3 + 0.0891337 * color**2 - 0.633923 * color + 0.0324473
     tmag = np.where(np.isfinite(tmag), tmag, g - 0.430)
+    if detector:
+        absolute = xy + origin
+        on_ccd = ((absolute >= [45, 1]) & (absolute <= [2092, 2048])).all(axis=1)
+        crossing = ((xy >= -8) & (xy < meta["size"] + 8)).any(axis=1)
+        keep = on_ccd & crossing & (tmag < 8)
+        return [
+            [int(source), float(x), float(y), float(t)]
+            for source, (x, y), t in zip(
+                table["source_id"][keep], xy[keep], tmag[keep], strict=True
+            )
+        ]
     valid = (
         np.isfinite(xy).all(axis=1)
         & np.isfinite(tmag)

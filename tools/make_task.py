@@ -55,6 +55,8 @@ def main():
             meta = read_json(destination / "metadata.json")
             if meta["sector"] != sid or meta["size"] != 140:
                 raise ValueError("Plan has wrong sector or patch size")
+            meta["gaia_dr3_bright_axes"] = catalog(destination, detector=True)
+            write_json(destination / "metadata.json", meta)
             observer = f"observer_s{sid}.npz"
             shutil.copyfile(args.geometry / observer, staging / observer)
             if (source / "stars.npz").exists():

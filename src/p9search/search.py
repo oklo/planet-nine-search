@@ -20,7 +20,7 @@ from .science.geometry import SectorGeometry, SkyFrame, grids
 from .science.hough_maps import prepare_foreground_covariance_maps
 from .science.matching import trajectory_distances
 from .science.motion_bank import restrict_specs, sector_sums_full_padding
-from .science.photometry import score_native_proposal
+from .science.photometry import bright_axes, score_native_proposal
 from .science.point_response import tess_pixel_model
 from .science.sector_photometry import coverage
 from .science.templates import bin_template
@@ -271,6 +271,18 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
             "recovered": None,
             "assessed": False,
             "responses": [],
+            **(
+                {
+                    "bright_axes_by_sector": {
+                        str(s.meta["sector"]): bright_axes(
+                            p, s.cadences["native_keep"], s.meta
+                        ).get("bright_axes")
+                        for s, p in zip(sectors, paths, strict=True)
+                    }
+                }
+                if any("gaia_dr3_bright_axes" in s.meta for s in sectors)
+                else {}
+            ),
         }
         try:
             for si, (sector, path, weight) in enumerate(zip(sectors, paths, weights, strict=True)):

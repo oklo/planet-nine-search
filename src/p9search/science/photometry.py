@@ -10,6 +10,28 @@ from .sector_photometry import combine, coverage
 from .templates import bin_template
 
 
+def bright_axes(xy, good, meta):
+    """Nearest Gaia T<8 rows and columns along the in-stamp part of a track."""
+    if "gaia_dr3_bright_axes" not in meta:
+        return {}
+    size = meta.get("size", 140)
+    track = np.asarray(xy)[good]
+    track = track[((track >= -0.5) & (track < size - 0.5)).all(axis=1)]
+    stars = meta["gaia_dr3_bright_axes"]
+    if not len(track) or not stars:
+        return {"bright_axes": {"catalog_stars": len(stars), "in_stamp_epochs": len(track)}}
+    result = {"catalog_stars": len(stars), "in_stamp_epochs": len(track)}
+    for axis, label in enumerate(("column", "row")):
+        distances = [float(np.abs(track[:, axis] - star[axis + 1]).min()) for star in stars]
+        i = int(np.argmin(distances))
+        result[label] = {"pixels": distances[i], "source_id": str(stars[i][0])}
+    dx, dy = track[-1] - track[0]
+    result["angle_from_row_deg"] = (
+        float(np.degrees(np.arctan2(abs(dy), abs(dx)))) if dx or dy else None
+    )
+    return {"bright_axes": result}
+
+
 def score_native_proposal(proposal, sectors, prepared, renderer=bin_template, unavailable=None):
     parameters = np.asarray(proposal["parameters"], float)
     orientation = float(proposal["orientation"])
@@ -44,6 +66,7 @@ def score_native_proposal(proposal, sectors, prepared, renderer=bin_template, un
             dict(
                 sector=sid,
                 **ctx,
+                **bright_axes(xy, good, sector.meta),
                 anchor=ctx["coverage"] >= 0.95,
                 flux=result["flux"],
                 sigma=result["sigma"],
