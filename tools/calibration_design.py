@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+from placement import evaluation_sample
 
 from p9search.science.geometry import SectorGeometry, SkyFrame
 
@@ -30,7 +31,7 @@ def main():
     halves = {"placement": [], "evaluation": []}
     for row in rows:
         index = int(row["index"])
-        bit = hashlib.sha256(f"p9 split v1/{index}".encode()).digest()[0] % 2
+        bit = int(evaluation_sample(index))
         halves[("placement", "evaluation")[bit]].append(index)
     sector_identity = [
         hashlib.sha256((s.directory / "geometry.npz").read_bytes()).hexdigest() for s in sectors

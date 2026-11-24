@@ -4,6 +4,7 @@ import io
 
 import numpy as np
 import requests
+from astropy.coordinates import SkyCoord
 from astropy.io import fits
 from astropy.table import Table
 from astropy.time import Time
@@ -22,13 +23,26 @@ def catalog(directory, *, detector=False):
     )
     sky = wcs.all_pix2world(pixels, 1)
     polygon = ",".join(f"{v:.9f}" for v in sky.ravel())
+    region = f"POLYGON('ICRS',{polygon})"
+    if detector:
+        center = wcs.all_pix2world([[1068.5, 1024.5]], 1)[0]
+        radius = (
+            SkyCoord(*center, unit="deg").separation(SkyCoord(*sky.T, unit="deg")).deg.max() + 0.2
+        )
+        region = f"CIRCLE('ICRS',{center[0]:.9f},{center[1]:.9f},{radius:.9f})"
     query = (
         "SELECT source_id,ra,dec,pmra,pmdec,ref_epoch,phot_g_mean_mag,phot_bp_mean_mag,phot_rp_mean_mag "
         "FROM gaiadr3.gaia_source WHERE 1=CONTAINS(POINT('ICRS',ra,dec),"
-        f"POLYGON('ICRS',{polygon})) AND phot_g_mean_mag IS NOT NULL"
+        f"{region}) AND phot_g_mean_mag IS NOT NULL"
     )
     if detector:
-        query += " AND phot_g_mean_mag < 13"
+        # A small margin avoids losing boundary cases in archive float arithmetic.
+        # Final membership uses epoch-corrected positions and double precision below.
+        color = "(phot_bp_mean_mag-phot_rp_mean_mag)"
+        query += (
+            " AND (phot_g_mean_mag < 8.44 OR phot_g_mean_mag + 0.0324473 "
+            f"+ {color}*(-0.633923 + {color}*(0.0891337-0.00522555*{color})) < 8.01)"
+        )
     for endpoint in [
         "https://gea.esac.esa.int/tap-server/tap/sync",
         "https://gaia.ari.uni-heidelberg.de/tap/sync",
@@ -49,7 +63,7 @@ def catalog(directory, *, detector=False):
             if len(response.content) > 32 * 2**20:
                 raise ValueError("Gaia response exceeds field limit")
             table = Table.read(io.BytesIO(response.content), format="fits")
-            if not 0 < len(table) < 100000:
+            if len(table) >= 100000 or (not detector and len(table) == 0):
                 raise ValueError("Gaia query empty or truncated")
             break
         except (requests.RequestException, ValueError):
