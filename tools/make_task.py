@@ -7,11 +7,11 @@ import zipfile
 from pathlib import Path
 
 import numpy as np
+from freeze_detector_metadata import freeze
 
 from p9search.bundles import ARRAYS, validate_bundle
 from p9search.catalog import catalog
 from p9search.policy import default_policy
-from p9search.science.geometry import SectorGeometry, SkyFrame, grids
 from p9search.storage import GIB, read_json, sha256, write_json
 from p9search.tasks import PROTOCOL, task_id, validate_task
 
@@ -56,8 +56,6 @@ def main():
             meta = read_json(destination / "metadata.json")
             if meta["sector"] != sid or meta["size"] != 140:
                 raise ValueError("Plan has wrong sector or patch size")
-            meta["gaia_dr3_bright_axes"] = catalog(destination, detector=True)
-            write_json(destination / "metadata.json", meta)
             observer = f"observer_s{sid}.npz"
             shutil.copyfile(args.geometry / observer, staging / observer)
             if (source / "stars.npz").exists():
@@ -69,13 +67,7 @@ def main():
                 required += (
                     (len(cadences["native_time"]) + 4 * len(cadences["time"])) * 140 * 140 * 4
                 )
-        reference = staging / f"s{args.reference:04d}"
-        frame = SkyFrame(reference)
-        sectors = [SectorGeometry(staging / f"s{sid:04d}", frame) for sid in args.sectors]
-        _, lattice = grids(sectors)
-        meta = read_json(reference / "metadata.json")
-        meta["motion_lattice"] = lattice
-        write_json(reference / "metadata.json", meta)
+        freeze(staging, args.reference, args.sectors)
         # Publish only arrays consumed by the worker, without catalog annotations.
         for path in staging.rglob("*.npz"):
             keys = ARRAYS.get(path.name, {"time": None, "position": None})
