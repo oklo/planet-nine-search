@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 
 from .bundles import MAX_EXPANDED, validate_bundle
 from .network import DEFAULT_ORIGINS, download, public_url
-from .policy import VERSION, validate_policy
+from .policy import VERSION, distance_range, validate_policy
 from .storage import canonical, sha256
 
 PROTOCOL = VERSION
@@ -78,6 +78,7 @@ def validate_task(spec):
         raise ValueError("At most eight predeclared injections per task")
     import math
 
+    minimum, maximum = distance_range(spec["policy"])
     for item in spec["injections"]:
         if (
             not isinstance(item, dict)
@@ -93,7 +94,7 @@ def validate_task(spec):
             for v in [*item["parameters"], item["radial_velocity"], item["flux"]]
         ):
             raise ValueError("Nonfinite injection")
-        if not (0 < item["flux"] <= 1000 and 1 / 1500 <= item["parameters"][4] <= 1 / 200):
+        if not (0 < item["flux"] <= 1000 and 1 / maximum <= item["parameters"][4] <= 1 / minimum):
             raise ValueError("Injection outside search scope")
     return spec
 

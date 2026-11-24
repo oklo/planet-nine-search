@@ -54,3 +54,17 @@ def test_bundle_cannot_escape_its_directory_or_smuggle_extra_files(tmp_path):
         fetch_bundle(spec, tmp_path, DiskBudget(tmp_path, 2**30, 0))
     assert not (tmp_path.parent / "escape.txt").exists()
     assert not (tmp_path / "data").exists()
+
+
+def test_reduced_range_is_bound_to_identity_and_limits_credit():
+    case = dict(parameters=[70, 70, 0, 0, 1 / 250], radial_velocity=0, flux=1, label="prior 12")
+    assert validate_task(specification(injections=[case]))
+    policy = dict(default_policy(), distance_au=[300, 1500])
+    with pytest.raises(ValueError, match="outside search scope"):
+        validate_task(specification(policy=policy, injections=[case]))
+    for d in (300, 1500):
+        case["parameters"][-1] = 1 / d
+        assert validate_task(specification(policy=policy, injections=[case]))
+    for limits in ([100, 1500], [300, 2000], [False, 1500], None):
+        with pytest.raises(ValueError, match="distance range"):
+            validate_task(specification(policy=dict(policy, distance_au=limits)))

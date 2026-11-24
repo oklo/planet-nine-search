@@ -288,6 +288,7 @@ function selectField(code, zoom = true) {
   textNode('h3', `${field.code} · ${field.name}`, panel, 'field-title');
   textNode('p', state.label, panel, 'field-state');
   textNode('p', `RA ${field.ra_deg.toFixed(3)}° · Dec ${field.dec_deg.toFixed(3)}°`, panel, 'field-meta');
+  if (Array.isArray(field.distance_au)) textNode('p', `Orbital distance · ${field.distance_au.join('–')} au`, panel, 'field-meta');
   if (field.state !== 'complete' || !field.depth_samples?.length) textNode('p', field.result, panel);
   if (Number.isInteger(field.historical_flag_count)) {
     textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
