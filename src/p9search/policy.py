@@ -16,9 +16,30 @@ def finite(value):
     return type(value) in (int, float) and math.isfinite(value)
 
 
+DISTANCE_CUTS = (200, 250, 300, 350, 400)
+
+
+def distance_range(policy):
+    limits = policy.get("distance_au", [200, 1500])
+    if (
+        not isinstance(limits, list)
+        or len(limits) != 2
+        or not all(type(v) is int for v in limits)
+        or limits[0] not in DISTANCE_CUTS
+        or limits[1] != 1500
+    ):
+        raise ValueError("Unsupported field distance range")
+    return limits
+
+
 def validate_policy(value, sectors):
-    if not isinstance(value, dict) or set(value) != {"version", "empirical_star_sectors", "prior"}:
+    if not isinstance(value, dict) or set(value) - {"distance_au"} != {
+        "version",
+        "empirical_star_sectors",
+        "prior",
+    }:
         raise ValueError("Invalid scientific policy")
+    distance_range(value)
     if value["version"] != VERSION:
         raise ValueError("Unsupported scientific policy")
     empirical = value["empirical_star_sectors"]

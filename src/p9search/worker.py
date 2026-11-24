@@ -144,6 +144,7 @@ def _work(args, budget, credentials, state):
                 {
                     "protocol": PROTOCOL,
                     "available_bytes": budget.available(),
+                    "field_distance_range": True,
                     "lease_token": client.credentials["lease_token"],
                 },
             )

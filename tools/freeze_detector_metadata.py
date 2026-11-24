@@ -23,8 +23,9 @@ def main():
     parser.add_argument(
         "--cache", type=Path, help="reuse compact Gaia catalogs across patches on the same detector"
     )
+    parser.add_argument("--minimum-au", choices=(200, 250, 300, 350, 400), type=int, default=200)
     args = parser.parse_args()
-    freeze(args.geometry, args.reference, args.sectors, args.cache)
+    freeze(args.geometry, args.reference, args.sectors, args.cache, args.minimum_au)
 
 
 def detector_stars(directory, meta, cache):
@@ -66,10 +67,10 @@ def detector_stars(directory, meta, cache):
     return result
 
 
-def freeze(geometry, reference, sector_ids, cache=None):
+def freeze(geometry, reference, sector_ids, cache=None, minimum=200):
     frame = SkyFrame(geometry / f"s{reference:04d}")
     sectors = [SectorGeometry(geometry / f"s{sid:04d}", frame) for sid in sector_ids]
-    _, grid = grids(sectors)
+    _, grid = grids(sectors, minimum=minimum)
 
     def updated(sector):
         path = sector.directory / "metadata.json"

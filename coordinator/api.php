@@ -113,14 +113,17 @@ function dispatch(PDO $db, string $action, array $body): array
                 }
                 $job = query(
                     $db,
-                    "SELECT * FROM tasks WHERE state='pending' AND required_bytes<=? AND NOT EXISTS
+                    "SELECT * FROM tasks WHERE state='pending' AND required_bytes<=?
+                         AND (CAST(? AS INTEGER)=1 OR json_type(spec,'$.policy.distance_au') IS NULL) AND NOT EXISTS
                          (SELECT 1 FROM events e WHERE e.worker_id=? AND e.task_id=tasks.id AND e.action='field_data_failure'
                           AND e.id>COALESCE((SELECT MAX(id) FROM events WHERE task_id=tasks.id AND action='operator_retry'),0))
                          ORDER BY priority DESC,id LIMIT 1",
-                    [$budget, $worker["id"]],
+                    [$budget, ($body["field_distance_range"] ?? false) === true ? 1 : 0, $worker["id"]],
                 )->fetch(PDO::FETCH_ASSOC);
                 if (!$job) {
-                    return ["task" => null, "retry_after" => 300, "reason" => "No ready field fits this worker's disk allocation"];
+                    $fits = query($db, "SELECT 1 FROM tasks WHERE state='pending' AND required_bytes<=? LIMIT 1", [$budget])->fetchColumn();
+                    $reason = $fits ? "No ready field is eligible for this worker" : "No ready field fits this worker's disk allocation";
+                    return ["task" => null, "retry_after" => 300, "reason" => $reason];
                 }
                 query(
                     $db,

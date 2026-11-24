@@ -5,6 +5,7 @@ import math
 import re
 from pathlib import Path
 
+from .policy import distance_range
 from .storage import canonical, load_bounded, sha256
 
 
@@ -129,6 +130,18 @@ def check_report(spec, report, approved_sources):
         and all(usable(r) for r in quality),
         "Invalid search state",
     )
+    if "distance_au" in spec["policy"]:
+        limits = distance_range(spec["policy"])
+        require(
+            report.get("grid", {}).get("distance_au") == limits, "Reported distance range differs"
+        )
+        require(
+            all(
+                1 / limits[1] <= case["parameters"][4] <= 1 / limits[0]
+                for case in spec["injections"]
+            ),
+            "Injection outside credited range",
+        )
     maxima = report.get("arm_maxima", {})
     require(
         set(maxima) == {"physical", "negative", "reversed"}

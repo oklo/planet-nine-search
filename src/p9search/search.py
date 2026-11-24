@@ -13,7 +13,7 @@ from .archive import acquire
 from .calibration import has_source, response_admitted, response_check, unchanged_pixels
 from .foreground import QUALITY_METHOD, QualityRejected, fit, screen
 from .injections import inject
-from .policy import check_prior_geometry, screen_rows
+from .policy import check_prior_geometry, distance_range, screen_rows
 from .provenance import execution_manifest, source_hash
 from .science.audited_hough_selector import AuditedHoughSearch
 from .science.geometry import SectorGeometry, SkyFrame, grids
@@ -105,6 +105,12 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
     data = fetch_bundle(spec, directory, budget, origins)
     frame = SkyFrame(data / f"s{spec['reference_sector']:04d}")
     sectors = [SectorGeometry(data / f"s{sid:04d}", frame) for sid in spec["sectors"]]
+    limits = distance_range(policy)
+    if (
+        "distance_au" in policy
+        and frame.meta.get("motion_lattice", {}).get("distance_au") != limits
+    ):
+        raise ValueError("Task and frozen field distance ranges differ")
     report = {
         "task_id": spec["task_id"],
         "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
@@ -165,7 +171,7 @@ def run(spec, directory, budget, *, origins=("https://oklo.org",)):
         screened.append(quality)
         gc.collect()
         runtime.release()
-    full, grid = grids(sectors)
+    full, grid = grids(sectors, *limits) if "distance_au" in policy else grids(sectors)
     check_prior_geometry(policy["prior"], frame, grid)
     prepared = []
     for sector, quality in zip(sectors, screened, strict=True):

@@ -15,12 +15,13 @@ def main():
     parser.add_argument("--reference", type=int, required=True)
     parser.add_argument("--sectors", type=int, nargs="+", required=True)
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--minimum-au", choices=(200, 250, 300, 350, 400), type=int, default=200)
     args = parser.parse_args()
     if args.reference not in args.sectors:
         raise ValueError("Reference sector must be included")
     frame = SkyFrame(args.geometry / f"s{args.reference:04d}")
     sectors = [SectorGeometry(args.geometry / f"s{sid:04d}", frame) for sid in args.sectors]
-    _, grid = grids(sectors)
+    _, grid = grids(sectors, minimum=args.minimum_au)
     write_json(args.out, LocalPriorPopulation(args.population).context(frame, grid))
 
 

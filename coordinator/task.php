@@ -125,6 +125,12 @@ function validate_spec(string $raw): array
     ) {
         throw new RuntimeException("Invalid injections");
     }
+    $p = $s["policy"];
+    $limits = is_array($p) && array_key_exists("distance_au", $p) ? $p["distance_au"] : [200, 1500];
+    if (!is_array($limits) || !array_is_list($limits) || count($limits) !== 2 ||
+        !in_array($limits[0], [200, 250, 300, 350, 400], true) || $limits[1] !== 1500) {
+        throw new RuntimeException("Unsupported field distance range");
+    }
     foreach ($s["injections"] as $i) {
         if (
             !is_array($i) ||
@@ -135,7 +141,7 @@ function validate_spec(string $raw): array
             $i["flux"] <= 0 ||
             $i["flux"] > 1000 ||
             $i["parameters"][4] < 1 / 1500 ||
-            $i["parameters"][4] > 1 / 200 ||
+            $i["parameters"][4] > 1 / $limits[0] ||
             !is_string($i["label"]) ||
             strlen($i["label"]) > 100
         ) {
@@ -145,7 +151,7 @@ function validate_spec(string $raw): array
     $p = $s["policy"];
     if (
         !is_array($p) ||
-        !keys_are($p, ["version", "empirical_star_sectors", "prior"]) ||
+        !keys_are(array_diff_key($p, ["distance_au" => true]), ["version", "empirical_star_sectors", "prior"]) ||
         $p["version"] !== PROTOCOL ||
         !is_array($p["empirical_star_sectors"]) ||
         !array_is_list($p["empirical_star_sectors"])
