@@ -281,11 +281,14 @@ def _work(args, budget, credentials, state):
             )
             if isinstance(error, FieldDataError):
                 body["field_data_failure"] = True
+                write_json(
+                    folder / "field-data-failure.json", {"task_id": spec["task_id"], "exit": 65}
+                )
             reply = {}
             try:
                 reply = retry_request(
                     lambda: client.request("release", body),
-                    args.continuous and recoverable,
+                    args.continuous and (recoverable or isinstance(error, FieldDataError)),
                     state,
                 )
                 client.clear_claim()

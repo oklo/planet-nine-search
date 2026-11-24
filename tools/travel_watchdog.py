@@ -39,11 +39,7 @@ def issues(worker, publication, reviewer, now):
     return problems
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    for key in ("worker", "publication", "reviewer", "state"):
-        parser.add_argument(key, type=Path)
-    args = parser.parse_args()
+def check(args):
     now = time.time()
     old = json.loads(args.state.read_text()) if args.state.exists() else {}
     state = {}
@@ -63,6 +59,39 @@ def main():
     tmp = args.state.with_suffix(".tmp")
     tmp.write_text(json.dumps(state))
     os.replace(tmp, args.state)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    for key in ("worker", "publication", "reviewer", "state"):
+        parser.add_argument(key, type=Path)
+    parser.add_argument("--watch", action="store_true")
+    args = parser.parse_args()
+    assertion = None
+    try:
+        while True:
+            check(args)
+            if not args.watch:
+                return
+            try:
+                state = json.loads(args.worker.read_text())
+            except (OSError, ValueError):
+                state = {}
+            busy = (
+                state.get("state") in {"searching", "submitting"}
+                and time.time() - state.get("updated", 0) < 300
+            )
+            if busy and (assertion is None or assertion.poll() is not None):
+                assertion = subprocess.Popen(["/usr/bin/caffeinate", "-i", "-w", str(os.getpid())])
+            if not busy and assertion is not None:
+                assertion.terminate()
+                assertion.wait()
+                assertion = None
+            time.sleep(60)
+    finally:
+        if assertion is not None:
+            assertion.terminate()
+            assertion.wait()
 
 
 if __name__ == "__main__":
