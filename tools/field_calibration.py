@@ -4,12 +4,14 @@ import argparse
 import gc
 import os
 import tempfile
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
+from band_mask import masked_screen
 
-from p9search import runtime, search
+from p9search import foreground, runtime, search
 from p9search.policy import default_policy
 from p9search.provenance import source_hash
 from p9search.storage import GIB, DiskBudget, read_json, sha256, write_json
@@ -36,6 +38,11 @@ def main():
     parser.add_argument("design", type=Path)
     parser.add_argument("out", type=Path)
     parser.add_argument("--nulls", type=int, default=64)
+    parser.add_argument(
+        "--axes",
+        type=Path,
+        help="frozen CCD-wide Gaia rows keyed by sector; masks within three pixels",
+    )
     args = parser.parse_args()
     if not 1 <= args.nulls <= 10000:
         parser.error("Choose 1 to 10000 time-shift controls")
@@ -52,12 +59,14 @@ def main():
         source=source_hash(),
         experiment=sha256(Path(__file__)),
         nulls=args.nulls,
+        axes=sha256(args.axes) if args.axes else None,
     )
     freeze = args.out / "protocol.json"
     if freeze.exists() and read_json(freeze) != identity:
         raise ValueError("Calibration inputs changed")
     write_json(freeze, identity)
     runtime.configure("cpu", 1)
+    mask_screen = masked_screen(foreground.screen, read_json(args.axes), 3) if args.axes else None
     budget = DiskBudget(args.out, 12 * GIB, 20 * GIB)
     with tempfile.TemporaryDirectory(dir=args.out) as temp:
         root = Path(temp)
@@ -130,10 +139,12 @@ def main():
                         raise NullMeasured()
                     return limit, [], maxima  # Measure injection recovery even in a flagged field.
 
-                with (
-                    patch.object(search, "acquire", lambda *a: None),
-                    patch.object(search, "control_threshold", measure),
-                ):
+                with ExitStack() as stack:
+                    stack.enter_context(patch.object(search, "acquire", lambda *a: None))
+                    stack.enter_context(patch.object(search, "control_threshold", measure))
+                    if mask_screen is not None:
+                        stack.enter_context(patch.object(search, "screen", mask_screen))
+                        stack.enter_context(patch.object(foreground, "screen", mask_screen))
                     try:
                         report = search.run(spec, stage, budget)
                         measurement.update(state=report["state"], injections=report["injections"])
