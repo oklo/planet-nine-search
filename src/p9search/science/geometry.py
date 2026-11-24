@@ -173,6 +173,17 @@ def grids(sectors, minimum=200.0, maximum=1500.0, joint_step=0.45, local_step=0.
     parallax -= parallax.mean(axis=0)
     inverse_step = joint_step / (np.sqrt(np.mean(np.sum(parallax**2, axis=1))) * scale)
     count = int(np.ceil((1 / minimum - 1 / maximum) / inverse_step)) + 1
+    frozen = frame.meta.get("motion_lattice")
+    if frozen is not None:
+        if frozen["distance_au"] != [minimum, maximum]:
+            raise ValueError("Frozen grid has the wrong distance limits")
+        count = frozen["inverse_distance_slices"]
+        angular_step = frozen["joint_angular_step_rad_per_day"]
+        local_angular = frozen["local_angular_step_rad_per_day"]
+        if not isinstance(count, int) or not all(
+            np.isfinite(v) and v > 0 for v in (angular_step, local_angular)
+        ):
+            raise ValueError("Invalid frozen motion grid")
     if not 2 <= count <= 128:
         raise ValueError("Distance lattice exceeds supported size")
     inverse = np.linspace(1 / maximum, 1 / minimum, count)
