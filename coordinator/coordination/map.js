@@ -8,7 +8,6 @@ const STATES = {
   needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-complete)', style: 'open'},
   calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
   validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
-  preflight_failed: {label: 'Stopped before search', color: 'var(--field-preflight)'},
   deferred: {label: 'Deferred / incomplete', color: 'var(--field-deferred)', style: 'open'},
   queued: {label: 'Queued', color: 'var(--field-queued)', style: 'circle'},
 };
@@ -96,7 +95,7 @@ function curve(points, attributes, parent) {
 }
 
 function candidateLabel(field) {
-  if (field.state === 'queued' || field.state === 'preflight_failed') return '';
+  if (field.state === 'queued') return '';
   if (!Number.isInteger(field.candidate_count)) return 'Candidate count unavailable';
   return field.candidate_count === 0 ? 'No candidate traces' :
     `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
@@ -475,6 +474,7 @@ async function initialize() {
     if (!response.ok) throw new Error('Snapshot unavailable');
     data = await response.json();
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
+    data.fields = data.fields.filter(field => field.state !== 'preflight_failed');
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
