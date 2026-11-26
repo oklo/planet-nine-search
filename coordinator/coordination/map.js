@@ -1,4 +1,4 @@
-import {recoverySummary, testLabel} from './sensitivity.mjs?v=3';
+import {recoveredOrbitCount, recoverySummary, testLabel} from './sensitivity.mjs?v=4';
 
 'use strict';
 
@@ -14,7 +14,8 @@ const STATES = {
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
-  recovered: 'Sensitivity from fields whose searches were independently rerun. The calculation weights recovered test planets by the Brown–Batygin orbit sample and adopts a 20% chance that planet nine exists.',
+  recovered: 'We add moving points of light to the TESS images at the predicted positions and brightnesses of model planets. Each orbit counts once when the search finds it.',
+  population: 'The share of the Brown–Batygin reference population recovered in injection tests.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
 };
@@ -23,12 +24,7 @@ for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
     const description = $('metric-description');
-    if (button.dataset.metric === 'recoverable') {
-      description.replaceChildren($('recoverable-copy').content.cloneNode(true));
-      description.querySelector('a').addEventListener('click', () => metricInfo.close());
-    } else {
-      description.textContent = metricDescriptions[button.dataset.metric];
-    }
+    description.textContent = metricDescriptions[button.dataset.metric];
     metricInfo.showModal();
   });
 }
@@ -457,16 +453,22 @@ async function updateQueue() {
     }
     $('queue-lists').hidden = false;
     $('queue-status').hidden = true;
-    if (count('audit_hold')) {
-      $('recovered-expectation').textContent = 'Under review';
-    } else if (data) {
-      $('recovered-expectation').textContent = data.sensitivity_proxy.by_validation?.full_replay?.toPrecision(4) ?? 'Unavailable';
-    }
+    if (data) displayRecovery(count('audit_hold') > 0);
   } catch {
     $('queue-lists').hidden = true;
     $('queue-status').hidden = false;
     $('queue-status').textContent = 'Live queue temporarily unavailable';
   }
+}
+
+function displayRecovery(held) {
+  const count = recoveredOrbitCount(data.fields);
+  const population = data.prior.population;
+  const share = count / population;
+  $('recovered-count').textContent = held ? 'Under review' : count.toLocaleString('en-US');
+  $('population-share').textContent = held ? 'Under review' : (100 * share).toFixed(2) + '%';
+  metricDescriptions.population = held ? 'The recovery ledger is under review.' :
+    `The search recovered ${count} of the ${population.toLocaleString('en-US')} Brown–Batygin model planets left by earlier surveys. Tests use the catalog brightness of each injected planet. With a ${Math.round(100 * data.sensitivity_proxy.existence_probability)}% chance that planet nine exists, those recoveries represent ${(data.sensitivity_proxy.existence_probability * share).toFixed(5)} planets in expectation. Including earlier brightness estimates gives ${data.sensitivity_proxy.value.toFixed(5)}. Real candidates still need follow-up.`;
 }
 
 async function initialize() {
@@ -479,12 +481,7 @@ async function initialize() {
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
     metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields await follow-up. A trace is a possible path across the images along which the search found excess light. Several traces can come from the same star.`;
-    $('recovered-expectation').textContent = data.sensitivity_proxy.by_validation?.full_replay?.toPrecision(4) ?? 'Unavailable';
-    if (data.expectation_forecast) {
-      $('recoverable-expectation').textContent = data.expectation_forecast.value.toPrecision(2);
-    } else {
-      $('recoverable-expectation').textContent = 'Not estimated';
-    }
+    displayRecovery(false);
     for (const [state, info] of Object.entries(STATES)) {
       if (state === 'unsearchable' && !data.field_counts[state]) continue;
       const item = textNode('span', '', $('state-legend'));
@@ -502,7 +499,7 @@ async function initialize() {
     }
     const labels = {full_replay: 'Fully replayed', consistency: 'Consistency checks', statistical: 'Statistical checks', trusted_local: 'Local checks', historical: 'Historical'};
     const tiers = Object.entries(data.sensitivity_proxy.by_validation || {}).map(([key, value]) => `${labels[key] || key} ${value.toPrecision(3)}`);
-    $('proxy-note').textContent = `${tiers.join(' · ')}. Total ${data.sensitivity_proxy.value.toPrecision(4)} expected planets. The calculation assumes a 20% existence probability and V − T = 0.5.`;
+    $('proxy-note').textContent = `${tiers.join(' · ')}. Combined sensitivity, including historical brightness estimates: ${data.sensitivity_proxy.value.toPrecision(4)} planets in expectation. The calculation assumes a 20% existence probability and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;

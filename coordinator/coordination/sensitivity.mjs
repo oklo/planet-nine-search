@@ -51,3 +51,20 @@ export function testLabel(field) {
   }).join(', ');
   return n === 1 ? `1 test planet · ${range} · ${found ? 'found' : 'missed'}` : `${found}/${n} test planets found · ${range}`;
 }
+
+// November 4 ledger recoveries whose early map entries omit the orbit ID.
+const historicalOrbitIds = [5652, 10938, 25264, 36205, 36600, 42627, 43449,
+  49218, 49907, 57898, 67130, 68175, 97468];
+
+export function recoveredOrbitCount(fields) {
+  const ids = new Set(historicalOrbitIds);
+  for (const field of fields) {
+    if (field.state !== 'complete') continue;
+    for (const trial of field.injections || []) {
+      if (trial.recovered === true && trial.assessed !== false && Number.isInteger(trial.reference_index)) {
+        ids.add(trial.reference_index);
+      }
+    }
+  }
+  return ids.size;
+}
