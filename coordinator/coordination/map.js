@@ -18,7 +18,7 @@ for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
     const description = $('metric-description');
-    description.textContent = metricDescriptions[button.dataset.metric];
+    description.replaceChildren(metricDescriptions[button.dataset.metric]);
     metricInfo.showModal();
   });
 }
@@ -466,8 +466,15 @@ function displayRecovery(held) {
   const population = data.prior.population;
   const share = count / population;
   $('population-share').textContent = held ? 'Under review' : (100 * share).toFixed(2) + '%';
-  metricDescriptions.population = held ? 'The recovery ledger is under review.' :
-    `We measure progress against ${population.toLocaleString('en-US')} possible versions of Planet Nine. So far, the search has recovered ${count} of them as artificial signals added to real TESS images.`;
+  if (held) {
+    metricDescriptions.population = 'The recovery ledger is under review.';
+  } else {
+    const sentence = document.createElement('span');
+    sentence.append(`Progress is measured against the ${population.toLocaleString('en-US')} possible versions of Planet Nine computed by `);
+    textNode('a', 'Brown & Batygin', sentence).href = 'https://data.caltech.edu/records/8fjad-x7y61';
+    sentence.append(' which have not been ruled out by searches to date.');
+    metricDescriptions.population = sentence;
+  }
 }
 
 async function initialize() {
