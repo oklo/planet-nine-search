@@ -9,7 +9,7 @@ Use the participant's installed `planet-nine-search` environment. Install from t
 
 Check the host before installing. Use macOS or Linux, 32 GB RAM, and Python 3.11–3.13 with venv and pip. Check free space on the work volume: the example below allows 12 GiB for work and leaves 20 GiB free, plus room for the installed environment. Check for an existing worker. If Python is missing or unsupported, use an available user-level installer (for example, `uv python install 3.12`) or explain the specific prerequisite that needs the user's help.
 
-Install the public package in a dedicated environment following the README. Run one installer at a time. Verify with `python -m pip check` and `p9 worker --help` in that environment. Reuse a healthy existing setup.
+Install the public package in a dedicated environment following the README. Run one installer at a time. Verify with `python -m pip check` and `p9 worker --help` in that environment. Reuse a healthy existing setup. Before claiming, run `.venv/bin/python skills/planet-nine-worker/scripts/check_host.py ./work` using the intended work path and launch permissions. This checks access to the calibration cache and the process monitor used for memory limits. If the agent sandbox blocks these, request permission to run the worker on the host and repeat the check.
 
 If the user has not chosen a mode, ask once: “Search one field, or keep searching until you tell me to stop?” For one field, run:
 
