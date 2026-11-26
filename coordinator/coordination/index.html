@@ -7,7 +7,7 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=22">
+  <link rel="stylesheet" href="map.css?v=23">
   <script src="map.js?v=38" type="module"></script>
 </head>
 <body>
@@ -37,11 +37,7 @@
       <div id="metric-description"></div>
       <form method="dialog"><button autofocus>Close</button></form>
     </dialog>
-    <section class="atlas" aria-labelledby="map-heading">
-      <div class="map-heading">
-        <h2 id="map-heading">Search atlas</h2>
-        <span class="small">Equatorial · Mollweide</span>
-      </div>
+    <section class="atlas" aria-label="Sky map">
       <div class="map-toolbar" aria-label="Map views">
         <div class="zoom-controls">
           <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
@@ -49,6 +45,7 @@
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
           <button id="reset-view" type="button" hidden>Reset</button>
         </div>
+        <span class="small">Equatorial · Mollweide</span>
       </div>
       <div class="map-frame">
         <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map">
