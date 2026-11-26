@@ -494,7 +494,7 @@ async function initialize() {
         const traces = data.physical_followup_flags;
         item.append(`${traces} candidate${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
       } else {
-        item.append(`${info.label} (${count})`);
+        item.append(state === 'complete' ? info.label : `${info.label} (${count})`);
       }
     }
     const labels = {full_replay: 'Fully replayed', consistency: 'Consistency checks', statistical: 'Statistical checks', trusted_local: 'Local checks', historical: 'Historical'};
