@@ -6,10 +6,6 @@ const STATES = {
   complete: {label: 'Recovery measured', color: 'var(--field-complete)'},
   unsearchable: {label: 'Reviewed · no searchable data', color: 'var(--field-complete)'},
   needs_followup: {label: 'Field awaiting follow-up', color: 'var(--field-complete)', style: 'open'},
-  calibration_pending: {label: 'Flags cleared · calibration pending', color: 'var(--field-calibration)'},
-  validation_failed: {label: 'Validation failed', color: 'var(--field-validation)'},
-  deferred: {label: 'Deferred / incomplete', color: 'var(--field-deferred)', style: 'open'},
-  queued: {label: 'Queued', color: 'var(--field-queued)', style: 'circle'},
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
@@ -95,7 +91,6 @@ function curve(points, attributes, parent) {
 }
 
 function candidateLabel(field) {
-  if (field.state === 'queued') return '';
   if (!Number.isInteger(field.candidate_count)) return 'Candidate count unavailable';
   return field.candidate_count === 0 ? 'No candidate traces' :
     `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
@@ -135,7 +130,6 @@ function drawMap() {
       d: skyPath(footprint.ra_dec_deg, true), stroke: state.color, fill: followup ? 'none' : state.color,
       'pointer-events': 'all',
       'fill-opacity': field.state === 'complete' ? 1 : 'var(--field-fill)', 'stroke-width': 1.1, 'vector-effect': 'non-scaling-stroke',
-      'stroke-dasharray': field.state === 'queued' ? '4 3' : 'none',
       'data-sector': footprint.sector,
     }, group));
     const [x, y] = project(field.ra_deg, field.dec_deg);
@@ -296,7 +290,7 @@ function selectField(code, zoom = true) {
     textNode('p', 'These tests did not establish a limiting magnitude.', panel, 'small');
   } else if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
   if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
-  textNode('p', field.state === 'queued' ? 'Planned sector footprints' : 'Sector image footprints', panel, 'small');
+  textNode('p', 'Sector image footprints', panel, 'small');
   const sectors = textNode('div', '', panel, 'sector-list');
   for (const sector of [null, ...field.footprints.map(p => p.sector)]) {
     const button = textNode('button', sector === null ? 'All sectors' : `S${sector}`, sectors);
@@ -474,7 +468,7 @@ async function initialize() {
     if (!response.ok) throw new Error('Snapshot unavailable');
     data = await response.json();
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
-    data.fields = data.fields.filter(field => field.state !== 'preflight_failed');
+    data.fields = data.fields.filter(field => Object.hasOwn(STATES, field.state));
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
