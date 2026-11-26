@@ -10,18 +10,75 @@ const STATES = {
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
   population: 'The share of the Brown–Batygin reference population recovered in injection tests.',
-  searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
-  flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
+  searched: 'A typical field is a patch of sky 140 TESS pixels on a side, about 0.8° across. We usually search it in three or four TESS observing periods (sectors). Each field counts once after the search runs, even where neighboring fields overlap.',
 };
 const metricInfo = $('metric-info');
+const topClose = $('candidate-top-close');
+function updateCandidateClose() {
+  topClose.hidden = true;
+  if (metricInfo.open && metricInfo.querySelector('.candidate-list')) {
+    topClose.hidden = metricInfo.scrollHeight <= metricInfo.clientHeight;
+  }
+}
+new ResizeObserver(updateCandidateClose).observe($('metric-description'));
+window.addEventListener('resize', updateCandidateClose);
 for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
     const description = $('metric-description');
-    description.textContent = metricDescriptions[button.dataset.metric];
+    const candidates = button.dataset.metric === 'flags';
+    metricInfo.classList.toggle('has-candidates', candidates);
+    if (candidates) {
+      const list = document.createElement('div');
+      description.replaceChildren(list);
+      showCandidates(list);
+    } else description.replaceChildren(metricDescriptions[button.dataset.metric]);
+    topClose.hidden = true;
     metricInfo.showModal();
   });
 }
+async function showCandidates(container) {
+  container.textContent = 'Loading candidates…';
+  try {
+    const response = await fetch('candidate.php?list=1', {cache: 'no-store'});
+    if (!response.ok) throw new Error();
+    const rows = await response.json();
+    if (!rows.length) {
+      container.textContent = 'No candidates awaiting follow-up.';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'candidate-list';
+    const headers = ['Candidate', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
+    const descriptions = ['Candidate', 'TESS magnitude', 'Radius in Earth radii, assuming geometric albedo 0.4 and V − T = 0.5',
+      'Estimated mass in Earth masses, using 3 Earth masses per Earth radius over the catalog range of 1–6.61 Earth radii', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
+    const head = table.createTHead().insertRow();
+    headers.forEach((title, index) => {
+      const cell = textNode('th', '', head);
+      cell.scope = 'col';
+      cell.title = descriptions[index];
+      cell.textContent = title;
+      if (title === 'R' || title === 'M') textNode('sub', '⊕', cell);
+    });
+    const body = table.createTBody();
+    for (const {field, number, orbit} of rows) {
+      const row = body.insertRow();
+      textNode('a', field + ' · ' + number, row.insertCell()).href =
+        'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
+      for (const [key, digits] of [['T', 1], ['radius', 1], ['mass', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
+        const radius = orbit?.radius;
+        const value = key === 'mass'
+          ? (radius >= 1 && radius <= 6.61 ? 3 * radius : null)
+          : orbit?.[key];
+        row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
+      }
+    }
+    container.replaceChildren(table);
+  } catch {
+    container.textContent = 'Candidate list unavailable.';
+  }
+}
+
 metricInfo.addEventListener('click', event => {
   if (event.target !== metricInfo) return;
   const box = metricInfo.getBoundingClientRect();
@@ -96,6 +153,11 @@ function candidateLabel(field) {
     `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
 }
 
+function candidatePage(field) {
+  return field.state === 'needs_followup' && field.candidate_count > 0
+    ? 'candidate.php?field=' + encodeURIComponent(field.code) : null;
+}
+
 function insidePolygon([x, y], polygon) {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -143,7 +205,9 @@ function drawMap() {
     const details = svgNode('g', {class: 'field-depth'}, label);
     const depthText = svgNode('text', {'font-size': 11}, details);
     depthText.textContent = testLabel(field);
-    const countText = svgNode('text', {'font-size': 11}, details);
+    const href = candidatePage(field);
+    const parent = href ? svgNode('a', {href, 'aria-label': field.code + ' · ' + candidateLabel(field)}, details) : details;
+    const countText = svgNode('text', {'font-size': 11}, parent);
     countText.textContent = candidateLabel(field);
     const labelWidth = Math.max(...[codeText, depthText, countText].map(n => n.getComputedTextLength())) + 12;
     const polygons = field.footprints.map(p => p.ra_dec_deg.map(point => project(...point)));
@@ -190,7 +254,8 @@ function setView(next) {
   $('zoom-level').textContent = `${zoom < 10 ? zoom.toFixed(1).replace('.0', '') : Math.round(zoom)}×`;
   $('zoom-in').disabled = zoom >= MAX_ZOOM - .1;
   $('zoom-out').disabled = zoom <= 1.001;
-  for (const button of document.querySelectorAll('[data-region]')) button.setAttribute('aria-pressed', String(button.dataset.region === 'all' && zoom === 1));
+  $('reset-view').hidden = zoom <= 1;
+  $('projection-label').hidden = zoom > 1;
 }
 
 function drawCoordinates(unit) {
@@ -281,7 +346,9 @@ function selectField(code, zoom = true) {
   if (Number.isInteger(field.historical_flag_count)) {
     textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
   }
-  textNode('p', `${[testLabel(field), candidateLabel(field)].filter(Boolean).join(' · ')}`, panel, 'field-meta');
+  const summary = textNode('p', testLabel(field) + ' · ', panel, 'field-meta');
+  if (candidatePage(field)) textNode('a', candidateLabel(field), summary).href = candidatePage(field);
+  else summary.append(candidateLabel(field));
   const recovery = recoverySummary(field);
   if (recovery && recovery.assessed < recovery.declared) textNode('p', `${recovery.declared - recovery.assessed} additional test planets could not be assessed.`, panel, 'small');
   if (field.depth_samples?.some(s => s.recovered > 0)) {
@@ -289,7 +356,6 @@ function selectField(code, zoom = true) {
   } else if (field.depth_samples?.some(s => s.tested > 0)) {
     textNode('p', 'These tests did not establish a limiting magnitude.', panel, 'small');
   } else if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
-  if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
   textNode('p', 'Sector image footprints', panel, 'small');
   const sectors = textNode('div', '', panel, 'sector-list');
   for (const sector of [null, ...field.footprints.map(p => p.sector)]) {
@@ -340,7 +406,7 @@ function resetGesture() {
 }
 
 sky.addEventListener('pointerdown', event => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || event.target.closest('a')) return;
   sky.focus({preventScroll: true});
   pointers.set(event.pointerId, {x: event.clientX, y: event.clientY, code: event.target.closest('[data-code]')?.dataset.code});
   sky.setPointerCapture(event.pointerId);
@@ -399,21 +465,10 @@ sky.addEventListener('keydown', event => {
 $('zoom-in').addEventListener('click', () => zoomAt(1.7));
 $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.7));
 $('clear-selection').addEventListener('click', () => selectField(null, false));
-for (const button of document.querySelectorAll('[data-region]')) {
-  button.addEventListener('click', () => {
-    const boxes = {north: [48, 102, 5, 30], crowded: [91, 100.5, 17, 27.4], south: [314.5, 321.5, -34, -28.7]};
-    const box = boxes[button.dataset.region];
-    const southern = button.dataset.region === 'south' && data
-      ? data.fields.filter(f => f.ra_deg > 300 && f.ra_deg < 330 && f.dec_deg < 0).flatMap(f => f.footprints.flatMap(p => p.ra_dec_deg)) : [];
-    if (southern.length) fitPoints(southern, 1.1);
-    else if (!box) setView({x: 0, y: 0, width: 1000});
-    else {
-      const [left, right, bottom, top] = box;
-      fitPoints([[left, bottom], [left, top], [right, bottom], [right, top]], 1.1);
-    }
-    button.setAttribute('aria-pressed', 'true');
-  });
-}
+$('reset-view').addEventListener('click', () => {
+  setView({x: 0, y: 0, width: 1000});
+  $('zoom-in').focus({preventScroll: true});
+});
 new ResizeObserver(() => setView(view)).observe(sky);
 
 async function updateQueue() {
@@ -458,8 +513,15 @@ function displayRecovery(held) {
   const population = data.prior.population;
   const share = count / population;
   $('population-share').textContent = held ? 'Under review' : (100 * share).toFixed(2) + '%';
-  metricDescriptions.population = held ? 'The recovery ledger is under review.' :
-    `We measure progress against ${population.toLocaleString('en-US')} possible versions of Planet Nine. So far, the search has recovered ${count} of them as artificial signals added to real TESS images.`;
+  if (held) {
+    metricDescriptions.population = 'The recovery ledger is under review.';
+  } else {
+    const sentence = document.createElement('span');
+    sentence.append(`Progress is measured against the ${population.toLocaleString('en-US')} possible versions of Planet Nine computed by `);
+    textNode('a', 'Brown & Batygin', sentence).href = 'https://data.caltech.edu/records/8fjad-x7y61';
+    sentence.append(' which have not been ruled out by searches to date.');
+    metricDescriptions.population = sentence;
+  }
 }
 
 async function initialize() {
@@ -472,7 +534,6 @@ async function initialize() {
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
-    metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields await follow-up. A trace is a possible path across the images along which the search found excess light. Several traces can come from the same star.`;
     displayRecovery(false);
     for (const [state, info] of Object.entries(STATES)) {
       if (state === 'unsearchable' && !data.field_counts[state]) continue;
@@ -484,14 +545,11 @@ async function initialize() {
       const count = data.field_counts[state] || 0;
       if (state === 'needs_followup') {
         const traces = data.physical_followup_flags;
-        item.append(`${traces} candidate${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
+        item.append(`${traces} live candidate${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
       } else {
-        item.append(`${info.label} (${count})`);
+        item.append(state === 'complete' ? info.label : `${info.label} (${count})`);
       }
     }
-    const labels = {full_replay: 'Fully replayed', consistency: 'Consistency checks', statistical: 'Statistical checks', trusted_local: 'Local checks', historical: 'Historical'};
-    const tiers = Object.entries(data.sensitivity_proxy.by_validation || {}).map(([key, value]) => `${labels[key] || key} ${value.toPrecision(3)}`);
-    $('proxy-note').textContent = `${tiers.join(' · ')}. Combined sensitivity, including historical brightness estimates: ${data.sensitivity_proxy.value.toPrecision(4)} planets in expectation. The calculation assumes a 20% existence probability and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;

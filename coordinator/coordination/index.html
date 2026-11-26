@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=16">
-  <script src="map.js?v=33" type="module"></script>
+  <link rel="stylesheet" href="map.css?v=27">
+  <script src="map.js?v=46" type="module"></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -30,35 +30,29 @@
     <div class="metrics" aria-label="Search progress">
       <div><strong id="searched-count">—</strong><button class="metric-label" type="button" data-metric="searched" aria-haspopup="dialog" aria-controls="metric-info">fields searched</button></div>
       <div><strong id="population-share">—</strong><button class="metric-label" type="button" data-metric="population" aria-haspopup="dialog" aria-controls="metric-info">of this project is complete</button></div>
-      <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">Candidates awaiting follow-up</button></div>
+      <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">Candidates in play</button></div>
     </div>
     <dialog id="metric-info" aria-labelledby="metric-title" aria-describedby="metric-description">
-      <h2 id="metric-title"></h2>
-      <p id="metric-description"></p>
+      <div class="metric-heading">
+        <h2 id="metric-title"></h2>
+        <form id="candidate-top-close" method="dialog" hidden><button>Close</button></form>
+      </div>
+      <div id="metric-description"></div>
       <form method="dialog"><button autofocus>Close</button></form>
     </dialog>
-    <section class="atlas" aria-labelledby="map-heading">
-      <div class="map-heading">
-        <h2 id="map-heading">Search atlas</h2>
-        <span class="small">Equatorial · Mollweide</span>
-      </div>
+    <section class="atlas" aria-label="Sky map">
       <div class="map-toolbar" aria-label="Map views">
-        <div class="regions">
-          <button type="button" data-region="all" aria-pressed="true">All sky</button>
-          <button type="button" data-region="north" aria-pressed="false">Northern fields</button>
-          <button type="button" data-region="crowded" aria-pressed="false">Crowded region</button>
-          <button type="button" data-region="south" aria-pressed="false">Southern fields</button>
-        </div>
         <div class="zoom-controls">
           <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
           <output id="zoom-level" aria-label="Map zoom">1×</output>
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="reset-view" type="button" hidden>Reset</button>
         </div>
       </div>
       <div class="map-frame">
-        <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map" aria-describedby="map-help">
+        <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map">
           <title>planet nine search fields</title>
-          <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons and select a field on the map to explore.</desc>
+          <desc>Shading shows where the Brown–Batygin model places Planet Nine if it exists. Colored outlines mark sector image footprints. Select a field on the map to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
             <ellipse cx="500" cy="250" rx="500" ry="250" fill="var(--map-surface)"/>
@@ -66,22 +60,24 @@
             <g id="graticule"></g>
             <g id="reference-curves"></g>
             <g id="fields"></g>
-            <g id="field-labels" aria-hidden="true"></g>
+            <g id="field-labels"></g>
             <g id="coordinates" aria-hidden="true"></g>
           </g>
           <ellipse cx="500" cy="250" rx="500" ry="250" fill="none" stroke="var(--map-outline)" vector-effect="non-scaling-stroke"/>
         </svg>
+        <span id="projection-label" class="small">Equatorial · Mollweide</span>
         <span id="cursor-coordinates" aria-hidden="true"></span>
       </div>
       <div class="map-caption">
-        <p id="map-help">Click to zoom. Drag to pan. Select a field for its sectors. Keyboard: + / −, arrows, 0 to reset.</p>
         <button id="clear-selection" type="button" hidden>Clear selection</button>
+      </div>
+      <div class="reference-legend density-legend">
+        <span class="density-key"><i class="density-ramp"></i><span>Odds Planet Nine is here</span><span>0–0.08% / deg²</span></span>
       </div>
       <div id="state-legend" class="state-legend" aria-label="Field states"></div>
       <div class="reference-legend">
         <span><i class="line galactic"></i>Galactic plane</span>
         <span><i class="line ecliptic"></i>Ecliptic</span>
-        <span class="density-key"><span>Purple: reference density</span><i class="density-ramp"></i><span>0–0.08% / deg²</span></span>
       </div>
     </section>
     <section class="queue-panel" aria-label="Search queue">
@@ -111,12 +107,10 @@
     </div>
     <details class="map-notes">
       <summary>Reading the map</summary>
-      <p>Purple shading is the density of 21,740 surviving reference orbits at the 2018 reference epoch, smoothed by 2°. Right ascension increases to the left; the ecliptic uses J2000.</p>
-      <p>Outlines are sector image footprints, including overlapping and unsearched pixels. The faintest green marks an assessed field with no demonstrated sensitivity. Stronger shading reflects recovery of injected test planets.</p>
-      <p>Zooming into a field shows the faintest recovered injection within the field. An &quot;unresolved flag&quot; is a trial trajectory that exceeded the field’s control scores. Several trajectories can flag the same residual, so this is not a count of distinct objects. Hollow green squares mark fields with open traces. A dash means flags were not assessed.</p>
-      <p>Flags are screened against the local orbital and physical ranges of the <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown reference population</a>, with allowances for sampling and measurement uncertainty. Rejected trials remain in the historical record. These classifications are conditional on the adopted planet-nine population.</p>
-      <p>Missed injections and uncalibrated depths are marked explicitly. T denotes TESS magnitude and V visual magnitude. Click a field for recovery counts at each tested magnitude.</p>
-      <p id="proxy-note"></p>
+      <p>Purple shows where Planet Nine would have appeared in 2018 along the 21,740 <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown–Batygin orbits</a> still allowed by earlier searches. The scale gives the percentage of those orbits per square degree, smoothed over 2°.</p>
+      <p>Green dots mark fields. Zoom in to see the patch of sky imaged in each TESS sector. Stronger green means the search more reliably picked up artificial planets added to the images. The faintest green marks fields with no demonstrated recovery.</p>
+      <p>Field labels show how many test planets were found and the brightnesses tried (T for TESS magnitude, V for visual magnitude). “Recovery tests pending” means the field has no published test result yet. Select a field for the counts at each brightness.</p>
+      <p>An open green square marks a field with a candidate still under review. Each candidate is a path along which a moving source may have registered. Several paths can pick up the same signal. Select the candidate count for images, or open “Candidates in play” to browse the list.</p>
       <p><a href="snapshot.json" download>Download the map snapshot (JSON)</a></p>
     </details>
   </main>
