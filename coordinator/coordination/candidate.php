@@ -15,6 +15,8 @@ foreach ($snapshot['fields'] as $field) {
     }
 }
 $orbits = is_file("$dir/orbits.json") ? json_decode(file_get_contents("$dir/orbits.json"), true) : [];
+$notes = json_decode(file_get_contents(__DIR__ . '/visual-review.json'), true) ?? [];
+$featured = [];
 $public = [];
 foreach ($snapshot['fields'] as $field) {
     $name = $field['code'];
@@ -25,13 +27,23 @@ foreach ($snapshot['fields'] as $field) {
     if (($record['task_id'] ?? null) !== ($field['task_id'] ?? null)
         || ($record['reviewed_paths'] ?? []) !== $ids) continue;
     $selected = array_values(array_intersect($ids, $record['public_paths'] ?? []));
+    $review = $notes[$name] ?? null;
+    if ($review && $review['task_id'] === $record['task_id']) {
+        foreach ($review['paths'] as $n => $note) {
+            if (in_array($n, $ids, true) && is_file("$dir/$name-$n.png")) {
+                $featured[$name][$n] = $note;
+                if (!in_array($n, $selected, true)) $selected[] = $n;
+            }
+        }
+    }
     if ($selected) $public[$name] = $selected;
 }
 if (isset($_GET['list'])) {
     $rows = [];
-    foreach ($public as $name => $numbers) {
+    foreach (array_replace(array_intersect_key($notes, $featured), $public) as $name => $numbers) {
         foreach ($numbers as $n) {
-            $rows[] = ['field' => $name, 'number' => $n, 'orbit' => $orbits[$name]['rows'][$n] ?? null];
+            $rows[] = ['field' => $name, 'number' => $n, 'orbit' => $orbits[$name]['rows'][$n] ?? null,
+                'title' => $featured[$name][$n]['title'] ?? null];
         }
     }
     header('Content-Type: application/json');
@@ -43,7 +55,7 @@ if (!is_string($code) || !preg_match('/^N[0-9]{1,12}$/D', $code)) {
     http_response_code(404);
     exit;
 }
-$ids = $active[$code] ?? [];
+$ids = array_unique(array_merge(array_keys($featured[$code] ?? []), $active[$code] ?? []));
 if (isset($_GET['image'])) {
     $id = filter_var($_GET['image'], FILTER_VALIDATE_INT);
     $path = "$dir/$code-$id.png";
@@ -86,15 +98,20 @@ if (!$ids) http_response_code(410);
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=28"></head>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=29"></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
-<?php foreach ($ids as $id): $id = (int)$id; ?>
-<section id="candidate-<?= $id ?>"><h3><?= in_array($id, $public[$code] ?? [], true) ? 'Candidate path' : 'Diagnostic path' ?> <?= $id ?></h3>
+<?php foreach ($ids as $id): $id = (int)$id; $note = $featured[$code][$id] ?? null; ?>
+<section id="candidate-<?= $id ?>">
+<?php if ($note): ?>
+<h3>Path <?= $id ?> · <?= htmlspecialchars($note['title']) ?></h3>
+<p><?= htmlspecialchars($note['text']) ?></p>
+<?php else: ?><h3><?= in_array($id, $public[$code] ?? [], true) ? 'Candidate path' : 'Diagnostic path' ?> <?= $id ?></h3><?php endif; ?>
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
+<?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
 <form method="post" class="candidate-votes" action="?field=<?= $code ?>">
 <input type="hidden" name="candidate" value="<?= $id ?>">
 <?php foreach (['yes' => 'Compelling', 'no' => 'Not compelling'] as $key => $label): ?>

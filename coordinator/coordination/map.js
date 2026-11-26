@@ -44,7 +44,7 @@ async function showCandidates(container) {
     if (!response.ok) throw new Error();
     const rows = await response.json();
     if (!rows.length) {
-      container.textContent = 'No candidates currently pass image review.';
+      container.textContent = 'There are currently no paths on display for visual review.';
       return;
     }
     const table = document.createElement('table');
@@ -61,10 +61,12 @@ async function showCandidates(container) {
       if (title === 'R' || title === 'M') textNode('sub', '⊕', cell);
     });
     const body = table.createTBody();
-    for (const {field, number, orbit} of rows) {
+    for (const {field, number, orbit, title} of rows) {
       const row = body.insertRow();
-      textNode('a', field + ' · ' + number, row.insertCell()).href =
+      const cell = row.insertCell();
+      textNode('a', field + ' · ' + number, cell).href =
         'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
+      if (title) textNode('small', title, cell);
       for (const [key, digits] of [['T', 1], ['radius', 1], ['mass', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
         const radius = orbit?.radius;
         const value = key === 'mass'
@@ -73,7 +75,9 @@ async function showCandidates(container) {
         row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
       }
     }
-    container.replaceChildren(table);
+    container.replaceChildren();
+    textNode('p', 'These trial paths are open for visual review. Select a field and path to compare the TESS images and vote on whether you see a moving object.', container);
+    container.append(table);
   } catch {
     container.textContent = 'Candidate list unavailable.';
   }
