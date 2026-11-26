@@ -1,13 +1,23 @@
 ---
 name: planet-nine-worker
-description: Start and supervise a continuous Planet Nine search worker, diagnose interruptions, and resume ordinary participant work without coordinator privileges.
+description: Set up a Planet Nine worker for one field or continuous searching, diagnose interruptions, and resume ordinary participant work without coordinator privileges.
 ---
 
 Use the participant's installed `planet-nine-search` environment. Install from the public repository's README if needed. Keep the same environment, private credential file, work directory and resource limits across sessions.
 
 ## Start
 
-Finish dependency installation before starting the worker. Run installers one at a time; do not change packages while a worker is running. If startup reports conflicting installed versions, preserve the work and credentials, create a clean environment, and install once before resuming.
+Check the host before installing. Use macOS or Linux, 32 GB RAM, and Python 3.11–3.13 with venv and pip. Check free space on the work volume: the example below allows 12 GiB for work and leaves 20 GiB free, plus room for the installed environment. Check for an existing worker. If Python is missing or unsupported, use an available user-level installer (for example, `uv python install 3.12`) or explain the specific prerequisite that needs the user's help.
+
+Install the public package in a dedicated environment following the README. Run one installer at a time. Verify with `python -m pip check` and `p9 worker --help` in that environment. Reuse a healthy existing setup.
+
+If the user has not chosen a mode, ask once: “Search one field, or keep searching until you tell me to stop?” For one field, run:
+
+```sh
+.venv/bin/p9 worker --directory ./work --credentials ~/.config/planet-nine/worker.json --max-disk-gb 12 --reserve-gb 20
+```
+
+Report a submission only after its receipt arrives. If no field is available, say so. The one-field command exits when the queue is empty.
 
 Once the user has authorized continuous searching, start one persistent worker with the bundled helper. From the repository root, for example:
 

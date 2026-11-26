@@ -11,12 +11,12 @@ cd planet-nine-search
 python -m venv .venv
 source .venv/bin/activate
 pip install .
-p9 worker --continuous --directory ./work --max-disk-gb 12 --reserve-gb 20
+p9 worker --directory ./work --max-disk-gb 12 --reserve-gb 20
 ```
 
-The first start registers the worker and claims an available field automatically.
+This searches one available field. For continuous background work, use the session helper in the [worker skill](skills/planet-nine-worker/SKILL.md). The first start registers the worker and claims an available field automatically.
 No GitHub account or approval request is needed. Each worker downloads one field,
-searches it, submits a compact result, and moves on after acknowledgement.
+searches it, submits a compact result, and in continuous mode claims the next field after acknowledgement.
 There is no daily quota or pause for pending review. The coordinator checks result
 identity, numerical consistency, and diagnostic checksums without repeating the
 search. Full reruns are an explicit diagnostic or scientific follow-up choice.
