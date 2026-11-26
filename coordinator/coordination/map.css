@@ -141,3 +141,11 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 
 .candidate-figure { margin: 1rem 0 2rem; }
 .candidate-figure img { display: block; width: min(100%, 58rem); height: auto; }
+
+#metric-info.has-candidates { width: min(55rem, calc(100% - 1rem)); }
+#metric-description { margin: 1rem 0; overflow-x: auto; }
+.candidate-list { width: 100%; border-collapse: collapse; font: .82rem var(--sans); font-variant-numeric: tabular-nums; }
+.candidate-list th, .candidate-list td { padding: .5rem .4rem; border-bottom: 1px solid var(--rule); text-align: right; }
+.candidate-list th:first-child, .candidate-list td:first-child { text-align: left; white-space: nowrap; }
+.candidate-votes { display: flex; gap: .5rem; margin: 0 0 2rem; }
+.candidate-votes span { margin-left: .3rem; font-variant-numeric: tabular-nums; }

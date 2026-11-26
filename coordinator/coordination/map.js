@@ -11,17 +11,61 @@ const $ = id => document.getElementById(id);
 const metricDescriptions = {
   population: 'The share of the Brown–Batygin reference population recovered in injection tests.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
-  flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
 };
 const metricInfo = $('metric-info');
 for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
     const description = $('metric-description');
-    description.replaceChildren(metricDescriptions[button.dataset.metric]);
+    const candidates = button.dataset.metric === 'flags';
+    metricInfo.classList.toggle('has-candidates', candidates);
+    if (candidates) {
+      const list = document.createElement('div');
+      description.replaceChildren(list);
+      showCandidates(list);
+    } else description.replaceChildren(metricDescriptions[button.dataset.metric]);
     metricInfo.showModal();
   });
 }
+async function showCandidates(container) {
+  container.textContent = 'Loading candidates…';
+  try {
+    const response = await fetch('candidate.php?list=1', {cache: 'no-store'});
+    if (!response.ok) throw new Error();
+    const rows = await response.json();
+    if (!rows.length) {
+      container.textContent = 'No candidates awaiting follow-up.';
+      return;
+    }
+    const table = document.createElement('table');
+    table.className = 'candidate-list';
+    const headers = ['Candidate', 'T mag', 'Radius (R⊕, albedo 0.4)', 'Distance (au)', 'Semimajor axis (au)', 'Eccentricity', 'Inclination (°)'];
+    const thead = table.createTHead();
+    const groups = thead.insertRow();
+    textNode('td', '', groups);
+    for (const [name, span] of [['Photometric estimates', 2], ['Trial orbit', 4]]) {
+      const heading = textNode('th', name, groups);
+      heading.colSpan = span;
+      heading.scope = 'colgroup';
+    }
+    const head = thead.insertRow();
+    for (const title of headers) textNode('th', title, head).scope = 'col';
+    const body = table.createTBody();
+    for (const {field, number, orbit} of rows) {
+      const row = body.insertRow();
+      textNode('a', field + ' · ' + number, row.insertCell()).href =
+        'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
+      for (const [key, digits] of [['T', 1], ['radius', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
+        const value = orbit?.[key];
+        row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
+      }
+    }
+    container.replaceChildren(table);
+  } catch {
+    container.textContent = 'Candidate list unavailable.';
+  }
+}
+
 metricInfo.addEventListener('click', event => {
   if (event.target !== metricInfo) return;
   const box = metricInfo.getBoundingClientRect();
@@ -487,7 +531,6 @@ async function initialize() {
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.physical_followup_flags;
-    metricDescriptions.flags = `${data.physical_followup_flags} candidate traces across ${data.fields.filter(field => field.state === 'needs_followup').length} fields await follow-up. A trace is a possible path across the images along which the search found excess light. Several traces can come from the same star.`;
     displayRecovery(false);
     for (const [state, info] of Object.entries(STATES)) {
       if (state === 'unsearchable' && !data.field_counts[state]) continue;
