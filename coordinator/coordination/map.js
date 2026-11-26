@@ -465,10 +465,12 @@ function displayRecovery(held) {
   const count = recoveredOrbitCount(data.fields);
   const population = data.prior.population;
   const share = count / population;
+  const total = $('model-total');
+  if (total) total.textContent = population.toLocaleString('en-US');
   $('recovered-count').textContent = held ? 'Under review' : count.toLocaleString('en-US');
   $('population-share').textContent = held ? 'Under review' : (100 * share).toFixed(2) + '%';
   metricDescriptions.population = held ? 'The recovery ledger is under review.' :
-    `The search recovered ${count} of the ${population.toLocaleString('en-US')} Brown–Batygin model planets left by earlier surveys. Tests use the catalog brightness of each injected planet. With a ${Math.round(100 * data.sensitivity_proxy.existence_probability)}% chance that planet nine exists, those recoveries represent ${(data.sensitivity_proxy.existence_probability * share).toFixed(5)} planets in expectation. Including earlier brightness estimates gives ${data.sensitivity_proxy.value.toFixed(5)}. Real candidates still need follow-up.`;
+    `The search recovered ${count} of the ${population.toLocaleString('en-US')} Brown–Batygin model planets left by earlier surveys. The denominator includes every model in that catalog sample, including those in fields we have yet to search. With a ${Math.round(100 * data.sensitivity_proxy.existence_probability)}% chance that planet nine exists, those recoveries represent ${(data.sensitivity_proxy.existence_probability * share).toFixed(5)} planets in expectation. Including earlier brightness estimates gives ${data.sensitivity_proxy.value.toFixed(5)}. Real candidates still need follow-up.`;
 }
 
 async function initialize() {
