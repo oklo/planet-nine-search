@@ -26,8 +26,10 @@ def main():
     except OSError as error:
         parser.exit(1, f"Worker needs write access: {error}\n")
     gib = 2**30
-    print(f"{psutil.virtual_memory().total / gib:.1f} GiB RAM, "
-          f"{shutil.disk_usage(args.directory).free / gib:.1f} GiB free on the work volume.")
+    print(
+        f"{psutil.virtual_memory().total / gib:.1f} GiB RAM, "
+        f"{shutil.disk_usage(args.directory).free / gib:.1f} GiB free on the work volume."
+    )
 
 
 if __name__ == "__main__":
