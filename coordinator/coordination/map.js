@@ -44,7 +44,7 @@ async function showCandidates(container) {
     if (!response.ok) throw new Error();
     const rows = await response.json();
     if (!rows.length) {
-      container.textContent = 'No candidates awaiting follow-up.';
+      container.textContent = 'No candidates currently pass image review.';
       return;
     }
     const table = document.createElement('table');
@@ -530,7 +530,20 @@ async function initialize() {
     if (!response.ok) throw new Error('Snapshot unavailable');
     data = await response.json();
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
-    data.fields = data.fields.filter(field => Object.hasOwn(STATES, field.state));
+    const publicList = await fetch('candidate.php?list=1', {cache: 'no-store'});
+    if (!publicList.ok) throw new Error('Candidate list unavailable');
+    const paths = new Map();
+    for (const row of await publicList.json()) {
+      if (!paths.has(row.field)) paths.set(row.field, new Set());
+      paths.get(row.field).add(row.number);
+    }
+    data.fields = data.fields.filter(field => Object.hasOwn(STATES, field.state) &&
+      (field.state !== 'needs_followup' || paths.has(field.code)));
+    for (const field of data.fields.filter(f => f.state === 'needs_followup')) {
+      field.candidate_count = paths.get(field.code).size;
+    }
+    data.field_counts.needs_followup = data.fields.filter(f => f.state === 'needs_followup').length;
+    data.physical_followup_flags = data.fields.reduce((n, f) => n + (f.state === 'needs_followup' ? f.candidate_count : 0), 0);
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
     $('followup-count').textContent = data.fields.filter(f => f.state === 'needs_followup' && f.candidate_count > 0).length;
