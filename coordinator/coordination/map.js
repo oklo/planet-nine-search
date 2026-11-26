@@ -39,28 +39,55 @@ async function showCandidates(container) {
     }
     const table = document.createElement('table');
     table.className = 'candidate-list';
-    const headers = ['Candidate', 'T mag', 'Radius (R⊕, albedo 0.4)', 'Distance (au)', 'Semimajor axis (au)', 'Eccentricity', 'Inclination (°)'];
+    const headers = ['Candidate', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
+    const descriptions = ['Candidate', 'TESS magnitude', 'Radius in Earth radii · albedo assumption',
+      'Estimated mass in Earth masses', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
+    const assumptions = document.createElement('p');
+    assumptions.id = 'candidate-assumptions';
+    assumptions.hidden = true;
+    assumptions.textContent = 'Geometric albedo 0.4 · V − T = 0.5. Model mass: 3 Earth masses per Earth radius, over the catalog range of 1–6.61 Earth radii.';
     const thead = table.createTHead();
     const groups = thead.insertRow();
     textNode('td', '', groups);
-    for (const [name, span] of [['Photometric estimates', 2], ['Trial orbit', 4]]) {
+    for (const [name, span] of [['Photometric estimates', 3], ['Trial orbit', 4]]) {
       const heading = textNode('th', name, groups);
       heading.colSpan = span;
       heading.scope = 'colgroup';
     }
     const head = thead.insertRow();
-    for (const title of headers) textNode('th', title, head).scope = 'col';
+    headers.forEach((title, index) => {
+      const cell = textNode('th', '', head);
+      cell.scope = 'col';
+      cell.title = descriptions[index];
+      const node = title === 'R' ? textNode('a', title, cell) : cell;
+      if (node === cell) node.textContent = title;
+      else {
+        node.href = '#candidate-assumptions';
+        node.setAttribute('aria-label', descriptions[index]);
+        node.setAttribute('aria-controls', assumptions.id);
+        node.setAttribute('aria-expanded', 'false');
+        node.addEventListener('click', event => {
+          event.preventDefault();
+          assumptions.hidden = !assumptions.hidden;
+          node.setAttribute('aria-expanded', String(!assumptions.hidden));
+        });
+      }
+      if (title === 'R' || title === 'M') textNode('sub', '⊕', node);
+    });
     const body = table.createTBody();
     for (const {field, number, orbit} of rows) {
       const row = body.insertRow();
       textNode('a', field + ' · ' + number, row.insertCell()).href =
         'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
-      for (const [key, digits] of [['T', 1], ['radius', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
-        const value = orbit?.[key];
+      for (const [key, digits] of [['T', 1], ['radius', 1], ['mass', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
+        const radius = orbit?.radius;
+        const value = key === 'mass'
+          ? (radius >= 1 && radius <= 6.61 ? 3 * radius : null)
+          : orbit?.[key];
         row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
       }
     }
-    container.replaceChildren(table);
+    container.replaceChildren(assumptions, table);
   } catch {
     container.textContent = 'Candidate list unavailable.';
   }
