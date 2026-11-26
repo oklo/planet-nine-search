@@ -43,6 +43,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 #metric-info::backdrop { background: #0006; }
 #metric-info h2 { font-family: var(--sans); font-size: 1rem; font-weight: 500; }
 #metric-info p { margin: 1rem 0; line-height: 1.6; }
+.metric-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 #metric-info form { text-align: right; }
 .zoom-controls button { min-width: 2.75rem; padding: .3rem; font-size: 1.2rem; }
 #reset-view { font-size: .78rem; padding-inline: .7rem; }

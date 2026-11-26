@@ -13,6 +13,15 @@ const metricDescriptions = {
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
 };
 const metricInfo = $('metric-info');
+const topClose = $('candidate-top-close');
+function updateCandidateClose() {
+  topClose.hidden = true;
+  if (metricInfo.open && metricInfo.querySelector('.candidate-list')) {
+    topClose.hidden = metricInfo.scrollHeight <= metricInfo.clientHeight;
+  }
+}
+new ResizeObserver(updateCandidateClose).observe($('metric-description'));
+window.addEventListener('resize', updateCandidateClose);
 for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
     $('metric-title').textContent = button.textContent;
@@ -24,6 +33,7 @@ for (const button of document.querySelectorAll('[data-metric]')) {
       description.replaceChildren(list);
       showCandidates(list);
     } else description.replaceChildren(metricDescriptions[button.dataset.metric]);
+    topClose.hidden = true;
     metricInfo.showModal();
   });
 }

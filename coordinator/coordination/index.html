@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=26">
-  <script src="map.js?v=43" type="module"></script>
+  <link rel="stylesheet" href="map.css?v=27">
+  <script src="map.js?v=44" type="module"></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -33,7 +33,10 @@
       <div><strong id="followup-count">—</strong><button class="metric-label" type="button" data-metric="flags" aria-haspopup="dialog" aria-controls="metric-info">Candidates in play</button></div>
     </div>
     <dialog id="metric-info" aria-labelledby="metric-title" aria-describedby="metric-description">
-      <h2 id="metric-title"></h2>
+      <div class="metric-heading">
+        <h2 id="metric-title"></h2>
+        <form id="candidate-top-close" method="dialog" hidden><button>Close</button></form>
+      </div>
       <div id="metric-description"></div>
       <form method="dialog"><button autofocus>Close</button></form>
     </dialog>
