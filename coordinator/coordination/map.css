@@ -48,6 +48,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 #reset-view { font-size: .78rem; padding-inline: .7rem; }
 #zoom-level { min-width: 3.3rem; text-align: center; font: .75rem var(--sans); }
 .map-frame { position: relative; background: var(--map-frame); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
+#projection-label { position: absolute; top: .4rem; right: .6rem; pointer-events: none; }
 #sky { display: block; width: 100%; aspect-ratio: 2; cursor: zoom-in; touch-action: none; }
 #sky.dragging { cursor: grabbing; }
 #sky [data-code] { cursor: pointer; }
@@ -132,7 +133,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
   .metrics strong { font-size: 1.55rem; }
   .metrics .metric-label { font-size: .72rem; }
   .state-legend, .reference-legend { font-size: .7rem; }
-  .map-toolbar .small { font-size: .68rem; }
+  #projection-label { font-size: .68rem; }
 }
 
 #worker-prompt { margin: .75rem 0; padding: .65rem 1rem; border-left: 2px solid var(--accent); background: var(--code-bg); overflow-wrap: anywhere; }

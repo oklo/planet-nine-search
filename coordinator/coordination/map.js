@@ -242,6 +242,7 @@ function setView(next) {
   $('zoom-in').disabled = zoom >= MAX_ZOOM - .1;
   $('zoom-out').disabled = zoom <= 1.001;
   $('reset-view').hidden = zoom <= 1;
+  $('projection-label').hidden = zoom > 1;
 }
 
 function drawCoordinates(unit) {
