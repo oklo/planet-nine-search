@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {recoverySummary} from '../coordinator/coordination/sensitivity.mjs';
+import {recoveredOrbitCount, recoverySummary} from '../coordinator/coordination/sensitivity.mjs';
 
 const field = (success, total) => ({state: 'complete', injections: Array.from({length: total}, (_, i) => ({reference_index: i, recovered: i < success}))});
 test('a completed search without recovery stays faint', () => {
@@ -41,4 +41,15 @@ test('map labels distinguish a measured miss from pending tests', async () => {
   assert.equal(testLabel({state: 'preflight_failed'}), 'Search not run');
   assert.equal(testLabel({state: 'complete', injections: [{assessed: false}]}), 'No test planet assessed');
   assert.equal(testLabel({state: 'complete', depth_samples: [miss, {...miss, magnitude: 21, tested: 2}]}), '0/3 test planets found · V 19.97–21.00');
+});
+
+
+test('survey count adds distinct assessed recoveries to the historical ledger', () => {
+  const baseline = recoveredOrbitCount([]);
+  const trials = [5652, 100, 100].map(reference_index => ({reference_index, recovered: true}));
+  const fields = [
+    {state: 'complete', injections: [...trials, {reference_index: 101, recovered: true, assessed: false}]},
+    {state: 'needs_followup', injections: [{reference_index: 102, recovered: true}]},
+  ];
+  assert.equal(recoveredOrbitCount(fields), baseline + 1);
 });
