@@ -46,15 +46,7 @@ async function showCandidates(container) {
     assumptions.id = 'candidate-assumptions';
     assumptions.hidden = true;
     assumptions.textContent = 'Geometric albedo 0.4 · V − T = 0.5. Model mass: 3 Earth masses per Earth radius, over the catalog range of 1–6.61 Earth radii.';
-    const thead = table.createTHead();
-    const groups = thead.insertRow();
-    textNode('td', '', groups);
-    for (const [name, span] of [['Photometric estimates', 3], ['Trial orbit', 4]]) {
-      const heading = textNode('th', name, groups);
-      heading.colSpan = span;
-      heading.scope = 'colgroup';
-    }
-    const head = thead.insertRow();
+    const head = table.createTHead().insertRow();
     headers.forEach((title, index) => {
       const cell = textNode('th', '', head);
       cell.scope = 'col';
