@@ -550,9 +550,6 @@ async function initialize() {
         item.append(state === 'complete' ? info.label : `${info.label} (${count})`);
       }
     }
-    const labels = {full_replay: 'Fully replayed', consistency: 'Consistency checks', statistical: 'Statistical checks', trusted_local: 'Local checks', historical: 'Historical'};
-    const tiers = Object.entries(data.sensitivity_proxy.by_validation || {}).map(([key, value]) => `${labels[key] || key} ${value.toPrecision(3)}`);
-    $('proxy-note').textContent = `${tiers.join(' · ')}. Combined sensitivity, including historical brightness estimates: ${data.sensitivity_proxy.value.toPrecision(4)} planets in expectation. The calculation assumes a 20% existence probability and V − T = 0.5.`;
     drawMap();
   } catch (error) {
     $('load-error').hidden = false;

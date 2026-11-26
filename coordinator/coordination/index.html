@@ -8,7 +8,7 @@
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
   <link rel="stylesheet" href="map.css?v=27">
-  <script src="map.js?v=44" type="module"></script>
+  <script src="map.js?v=45" type="module"></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -107,12 +107,10 @@
     </div>
     <details class="map-notes">
       <summary>Reading the map</summary>
-      <p>The shading shows where Planet Nine would have appeared in 2018 for 21,740 possible orbits from the Brown–Batygin model. The scale gives the percentage of modeled locations per square degree, smoothed over 2°. Right ascension increases to the left; the ecliptic uses J2000.</p>
-      <p>Outlines are sector image footprints, including overlapping and unsearched pixels. The faintest green marks an assessed field with no demonstrated sensitivity. Stronger shading reflects recovery of injected test planets.</p>
-      <p>Zooming into a field shows the faintest recovered injection within the field. An &quot;unresolved flag&quot; is a trial trajectory that exceeded the field’s control scores. Several trajectories can flag the same residual, so this is not a count of distinct objects. Hollow green squares mark fields with open traces. A dash means flags were not assessed.</p>
-      <p>Flags are screened against the local orbital and physical ranges of the <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown reference population</a>, with allowances for sampling and measurement uncertainty. Rejected trials remain in the historical record. These classifications are conditional on the adopted planet-nine population.</p>
-      <p>Missed injections and uncalibrated depths are marked explicitly. T denotes TESS magnitude and V visual magnitude. Click a field for recovery counts at each tested magnitude.</p>
-      <p id="proxy-note"></p>
+      <p>Purple shows where Planet Nine would have appeared in 2018 along the 21,740 <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown–Batygin orbits</a> still allowed by earlier searches. The scale gives the percentage of those orbits per square degree, smoothed over 2°.</p>
+      <p>Green dots mark fields. Zoom in to see the patch of sky imaged in each TESS sector. Stronger green means the search more reliably picked up artificial planets added to the images. The faintest green marks fields with no demonstrated recovery.</p>
+      <p>Field labels show how many test planets were found and the brightnesses tried (T for TESS magnitude, V for visual magnitude). “Recovery tests pending” means the field has no published test result yet. Select a field for the counts at each brightness.</p>
+      <p>An open green square marks a field with a candidate still under review. Each candidate is a path along which a moving source may have registered. Several paths can pick up the same signal. Select the candidate count for images, or open “Candidates in play” to browse the list.</p>
       <p><a href="snapshot.json" download>Download the map snapshot (JSON)</a></p>
     </details>
   </main>
