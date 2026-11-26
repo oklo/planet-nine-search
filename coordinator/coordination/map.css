@@ -52,9 +52,13 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 #sky.dragging { cursor: grabbing; }
 #sky [data-code] { cursor: pointer; }
 #cursor-coordinates { position: absolute; bottom: .4rem; left: .6rem; color: #55595f; background: #ffffffdc; font: .68rem var(--sans); pointer-events: none; }
-#field-labels text { font-family: var(--sans); font-weight: 600; paint-order: stroke; stroke: var(--map-surface); stroke-linejoin: round; }
+#field-labels { fill: var(--text); }
+#field-labels [data-code] { fill: inherit; }
+#field-labels a { fill: var(--accent); text-decoration: underline; cursor: pointer; }
+#coordinates { pointer-events: none; }
+#field-labels text { font-family: var(--sans); font-weight: 600; stroke: none; }
 #field-labels .field-depth text { font-weight: 400; }
-#coordinates text { font-family: var(--sans); fill: var(--map-coordinate); paint-order: stroke; stroke: var(--map-surface); stroke-linejoin: round; }
+#coordinates text { font-family: var(--sans); fill: var(--map-coordinate); stroke: none; }
 .map-caption { align-items: flex-start; font-size: .72rem; color: var(--text-soft); margin: .5rem 0 .8rem; }
 .map-caption p { margin: .25rem 0; }
 .map-caption button { flex: 0 0 auto; }
@@ -131,3 +135,6 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 }
 
 #worker-prompt { margin: .75rem 0; padding: .65rem 1rem; border-left: 2px solid var(--accent); background: var(--code-bg); overflow-wrap: anywhere; }
+
+.candidate-figure { margin: 1rem 0 2rem; }
+.candidate-figure img { display: block; width: min(100%, 58rem); height: auto; }

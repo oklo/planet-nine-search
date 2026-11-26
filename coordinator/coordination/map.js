@@ -96,6 +96,11 @@ function candidateLabel(field) {
     `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
 }
 
+function candidatePage(field) {
+  return field.state === 'needs_followup' && field.candidate_count > 0
+    ? 'candidate.php?field=' + encodeURIComponent(field.code) : null;
+}
+
 function insidePolygon([x, y], polygon) {
   let inside = false;
   for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
@@ -143,7 +148,9 @@ function drawMap() {
     const details = svgNode('g', {class: 'field-depth'}, label);
     const depthText = svgNode('text', {'font-size': 11}, details);
     depthText.textContent = testLabel(field);
-    const countText = svgNode('text', {'font-size': 11}, details);
+    const href = candidatePage(field);
+    const parent = href ? svgNode('a', {href, 'aria-label': field.code + ' · ' + candidateLabel(field)}, details) : details;
+    const countText = svgNode('text', {'font-size': 11}, parent);
     countText.textContent = candidateLabel(field);
     const labelWidth = Math.max(...[codeText, depthText, countText].map(n => n.getComputedTextLength())) + 12;
     const polygons = field.footprints.map(p => p.ra_dec_deg.map(point => project(...point)));
@@ -281,7 +288,9 @@ function selectField(code, zoom = true) {
   if (Number.isInteger(field.historical_flag_count)) {
     textNode('p', `${field.historical_flag_count} original flags · ${field.candidate_count} awaiting follow-up`, panel, 'small');
   }
-  textNode('p', `${[testLabel(field), candidateLabel(field)].filter(Boolean).join(' · ')}`, panel, 'field-meta');
+  const summary = textNode('p', testLabel(field) + ' · ', panel, 'field-meta');
+  if (candidatePage(field)) textNode('a', candidateLabel(field), summary).href = candidatePage(field);
+  else summary.append(candidateLabel(field));
   const recovery = recoverySummary(field);
   if (recovery && recovery.assessed < recovery.declared) textNode('p', `${recovery.declared - recovery.assessed} additional test planets could not be assessed.`, panel, 'small');
   if (field.depth_samples?.some(s => s.recovered > 0)) {
@@ -289,7 +298,6 @@ function selectField(code, zoom = true) {
   } else if (field.depth_samples?.some(s => s.tested > 0)) {
     textNode('p', 'These tests did not establish a limiting magnitude.', panel, 'small');
   } else if (field.depth_note) textNode('p', field.depth_note, panel, 'small');
-  if (field.physical_followup_flags) textNode('p', `${field.physical_followup_flags} unresolved flag${field.physical_followup_flags === 1 ? '' : 's'} · no confirmed planet`, panel, 'small');
   textNode('p', 'Sector image footprints', panel, 'small');
   const sectors = textNode('div', '', panel, 'sector-list');
   for (const sector of [null, ...field.footprints.map(p => p.sector)]) {
@@ -340,7 +348,7 @@ function resetGesture() {
 }
 
 sky.addEventListener('pointerdown', event => {
-  if (event.button !== 0) return;
+  if (event.button !== 0 || event.target.closest('a')) return;
   sky.focus({preventScroll: true});
   pointers.set(event.pointerId, {x: event.clientX, y: event.clientY, code: event.target.closest('[data-code]')?.dataset.code});
   sky.setPointerCapture(event.pointerId);
