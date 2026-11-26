@@ -900,6 +900,33 @@ def test_operator_handover_checks_checkpoint_and_fences_prior_owner(coordinator)
     assert "Current operator lease required" in admin("review-plan", "missing", fence=one).stderr
 
 
+def test_queue_labels_show_effective_distance_range(coordinator):
+    labels = {}
+    for n, (label, policy, expected) in enumerate(
+        [
+            ("Legacy field", {}, "Legacy field 200–1500 au"),
+            ("Ranged field", {"distance_au": [300, 1500]}, "Ranged field 300–1500 au"),
+            (
+                "Existing field 250–1500 au",
+                {"distance_au": [250, 1500]},
+                "Existing field 250–1500 au",
+            ),
+            (
+                "Revised field 200–1500 au",
+                {"distance_au": [350, 1500]},
+                "Revised field 350–1500 au",
+            ),
+        ],
+        start=1,
+    ):
+        task = seed(coordinator, number=n)
+        task.update(label=label, policy=policy)
+        coordinator[1]("UPDATE tasks SET spec=? WHERE id=?", [json.dumps(task), task["task_id"]])
+        labels[task["task_id"]] = expected
+    status = requests.get(coordinator[0], params={"action": "status"}, timeout=20).json()
+    assert {row["task_id"]: row["label"] for row in status["queue_fields"]["pending"]} == labels
+
+
 def test_ranged_fields_require_worker_support(coordinator):
     task = seed(coordinator)
     task["policy"] = {"distance_au": [300, 1500]}
