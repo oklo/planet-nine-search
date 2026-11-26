@@ -7,8 +7,10 @@ import sys
 from contextlib import nullcontext
 from pathlib import Path
 
+import psutil
+
 from .client import DEFAULT_COORDINATOR, Client
-from .limits import FieldDataError, ResourceGuard
+from .limits import FieldDataError, ResourceGuard, worker_memory_gib
 from .network import DEFAULT_ORIGINS, TransportError, transport_error
 from .storage import (
     GIB,
@@ -93,8 +95,19 @@ def parser():
             "--reserve-gb", type=float, default=20.0, help="minimum free GiB to leave on the volume"
         )
         command.add_argument("--device", choices=("auto", "cpu", "mps", "cuda"), default="auto")
-        command.add_argument("--threads", type=int, default=4)
-        command.add_argument("--max-memory-gb", type=float, default=24.0)
+        memory_default = "24" if command is reviewer else "60%% of host RAM, rounded down to 1–12"
+        command.add_argument(
+            "--threads",
+            type=int,
+            default=4 if command is reviewer else 2,
+            help="CPU threads (default: %(default)s)",
+        )
+        command.add_argument(
+            "--max-memory-gb",
+            type=float,
+            default=24.0 if command is reviewer else None,
+            help=f"resident memory limit in GiB (default: {memory_default} GiB)",
+        )
         command.add_argument("--max-hours", type=float, default=4.0)
         command.add_argument("--bundle-origin", action="append", default=list(DEFAULT_ORIGINS))
     return root
@@ -121,6 +134,8 @@ def execute(args):
                 store.restore(args.name, args.directory)
             print(f"Restored {args.name} to {args.directory}; image pixels can be reacquired.")
             return 0
+        if args.max_memory_gb is None:
+            args.max_memory_gb = worker_memory_gib(psutil.virtual_memory().total)
         if not all(math.isfinite(v) and v > 0 for v in (args.max_memory_gb, args.max_hours)):
             raise ValueError("Positive finite memory and runtime limits required")
         if args.threads < 1:

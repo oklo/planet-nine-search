@@ -61,7 +61,12 @@ zero radial velocity and straight Cartesian propagation; final trajectories
 use solar two-body propagation. Light-time variation and planetary perturbations
 are omitted. The release contains no trained neural classifier.
 
-The maintained worker target is Linux or macOS with 32 GB RAM. Apple MPS is
+The worker runs on Linux and macOS. We recommend 32 GB for headroom.
+Earlier workers submitted fields on 16 GB and 8 GB Intel Macs under 9 GiB
+and 4 GiB limits, respectively. Those submissions did not receive verified
+results. A 36 GiB Mac has submitted three- and four-sector fields with a
+12 GiB limit and two threads. For a 16 GB host, start with one field.
+An 8 GB host is experimental. Apple MPS is
 validated on real data; CPU kernels are covered by numerical tests. CUDA uses
 the PyTorch path and has not yet been validated on hardware. Disk limits apply
 to the chosen work directory, including retained results; dependency installs

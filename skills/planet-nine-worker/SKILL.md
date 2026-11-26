@@ -7,7 +7,9 @@ Use the participant's installed `planet-nine-search` environment. Install from t
 
 ## Start
 
-Check the host before installing. Use macOS or Linux, 32 GB RAM, and Python 3.11–3.13 with venv and pip. Check free space on the work volume: the example below allows 12 GiB for work and leaves 20 GiB free, plus room for the installed environment. Check for an existing worker. If Python is missing or unsupported, use an available user-level installer (for example, `uv python install 3.12`) or explain the specific prerequisite that needs the user's help.
+Check the host before installing. Use macOS or Linux and Python 3.11–3.13 with venv and pip. We recommend 32 GB RAM for headroom. A 16 GB machine can try one field. An 8 GB machine is experimental and some fields can exceed its memory limit. Check free space on the work volume: the example below allows 12 GiB for work and leaves 20 GiB free, plus room for the installed environment. Check for an existing worker. If Python is missing or unsupported, use an available user-level installer (for example, `uv python install 3.12`) or explain the specific prerequisite that needs the user's help.
+
+From version 0.5.8 the worker defaults to two threads and a memory limit of 60% of physical RAM rounded down to whole GiB, from 1 to 12 GiB. On an 8, 16 or 32 GiB host this gives 4, 9 or 12 GiB respectively. On older installations, pass the corresponding `--max-memory-gb` value and `--threads 2` explicitly when starting a worker. Preserve resource limits the participant has chosen.
 
 Install the public package in a dedicated environment following the README. Run one installer at a time. Verify with `python -m pip check` and `p9 worker --help` in that environment. Reuse a healthy existing setup. Before claiming, run `.venv/bin/python skills/planet-nine-worker/scripts/check_host.py ./work` using the intended work path and launch permissions. This checks access to the calibration cache and the process monitor used for memory limits. If the agent sandbox blocks these, request permission to run the worker on the host and repeat the check.
 
@@ -24,7 +26,7 @@ Once the user has authorized continuous searching, start one persistent worker w
 ```sh
 .venv/bin/python skills/planet-nine-worker/scripts/session.py start -- \
   --directory /path/to/work --credentials ~/.config/planet-nine/worker.json \
-  --max-disk-gb 12 --reserve-gb 20 --threads 4
+  --max-disk-gb 12 --reserve-gb 20
 ```
 
 Use a real work path on the intended disk. Choose limits that leave room for the user's other work. Credentials belong on a private disk.
