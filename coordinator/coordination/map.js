@@ -14,7 +14,6 @@ const STATES = {
 };
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
-  recovered: 'We add moving points of light to the TESS images at the predicted positions and brightnesses of model planets. Each orbit counts once when the search finds it.',
   population: 'The share of the Brown–Batygin reference population recovered in injection tests.',
   searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
   flags: 'Trial tracks that passed the search threshold and still need checking. Several tracks can come from one stellar residual.',
@@ -465,10 +464,9 @@ function displayRecovery(held) {
   const count = recoveredOrbitCount(data.fields);
   const population = data.prior.population;
   const share = count / population;
-  $('recovered-count').textContent = held ? 'Under review' : count.toLocaleString('en-US');
   $('population-share').textContent = held ? 'Under review' : (100 * share).toFixed(2) + '%';
   metricDescriptions.population = held ? 'The recovery ledger is under review.' :
-    `The search recovered ${count} of the ${population.toLocaleString('en-US')} Brown–Batygin model planets left by earlier surveys. Tests use the catalog brightness of each injected planet. With a ${Math.round(100 * data.sensitivity_proxy.existence_probability)}% chance that planet nine exists, those recoveries represent ${(data.sensitivity_proxy.existence_probability * share).toFixed(5)} planets in expectation. Including earlier brightness estimates gives ${data.sensitivity_proxy.value.toFixed(5)}. Real candidates still need follow-up.`;
+    `We measure progress against ${population.toLocaleString('en-US')} possible versions of Planet Nine. So far, the search has recovered ${count} of them as artificial signals added to real TESS images.`;
 }
 
 async function initialize() {
