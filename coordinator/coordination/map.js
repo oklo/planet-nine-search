@@ -490,7 +490,7 @@ async function initialize() {
       const count = data.field_counts[state] || 0;
       if (state === 'needs_followup') {
         const traces = data.physical_followup_flags;
-        item.append(`${traces} candidate ${traces === 1 ? 'trace' : 'traces'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
+        item.append(`${traces} candidate${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
       } else {
         item.append(`${info.label} (${count})`);
       }
