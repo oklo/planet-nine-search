@@ -40,31 +40,15 @@ async function showCandidates(container) {
     const table = document.createElement('table');
     table.className = 'candidate-list';
     const headers = ['Candidate', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
-    const descriptions = ['Candidate', 'TESS magnitude', 'Radius in Earth radii · albedo assumption',
-      'Estimated mass in Earth masses', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
-    const assumptions = document.createElement('p');
-    assumptions.id = 'candidate-assumptions';
-    assumptions.hidden = true;
-    assumptions.textContent = 'Geometric albedo 0.4 · V − T = 0.5. Model mass: 3 Earth masses per Earth radius, over the catalog range of 1–6.61 Earth radii.';
+    const descriptions = ['Candidate', 'TESS magnitude', 'Radius in Earth radii, assuming geometric albedo 0.4 and V − T = 0.5',
+      'Estimated mass in Earth masses, using 3 Earth masses per Earth radius over the catalog range of 1–6.61 Earth radii', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
     const head = table.createTHead().insertRow();
     headers.forEach((title, index) => {
       const cell = textNode('th', '', head);
       cell.scope = 'col';
       cell.title = descriptions[index];
-      const node = title === 'R' ? textNode('a', title, cell) : cell;
-      if (node === cell) node.textContent = title;
-      else {
-        node.href = '#candidate-assumptions';
-        node.setAttribute('aria-label', descriptions[index]);
-        node.setAttribute('aria-controls', assumptions.id);
-        node.setAttribute('aria-expanded', 'false');
-        node.addEventListener('click', event => {
-          event.preventDefault();
-          assumptions.hidden = !assumptions.hidden;
-          node.setAttribute('aria-expanded', String(!assumptions.hidden));
-        });
-      }
-      if (title === 'R' || title === 'M') textNode('sub', '⊕', node);
+      cell.textContent = title;
+      if (title === 'R' || title === 'M') textNode('sub', '⊕', cell);
     });
     const body = table.createTBody();
     for (const {field, number, orbit} of rows) {
@@ -79,7 +63,7 @@ async function showCandidates(container) {
         row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
       }
     }
-    container.replaceChildren(assumptions, table);
+    container.replaceChildren(table);
   } catch {
     container.textContent = 'Candidate list unavailable.';
   }
