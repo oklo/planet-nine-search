@@ -79,7 +79,7 @@ if (!$ids) http_response_code(410);
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
 <?php foreach ($ids as $id): $id = (int)$id; ?>
-<section id="candidate-<?= $id ?>"><h3>Candidate <?= $id ?></h3>
+<section id="candidate-<?= $id ?>"><h3>Trial path <?= $id ?></h3>
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
