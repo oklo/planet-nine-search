@@ -20,8 +20,7 @@ This searches one available field. For continuous background work, use the sessi
 No GitHub account or approval request is needed. Each worker downloads one field,
 searches it, submits a compact result, and in continuous mode claims the next field after acknowledgement.
 There is no daily quota or pause for pending review. The coordinator checks result
-identity, numerical consistency, and diagnostic checksums without repeating the
-search. Full reruns are an explicit diagnostic or scientific follow-up choice.
+identity, numerical consistency, and diagnostic checksums.
 Completed image arrays are deleted once compact submission evidence is ready,
 including during network outages. After acknowledgement, only 32 compressed
 receipts remain (at most 256 MiB). Routine interrupted downloads are discarded and
