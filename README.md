@@ -8,7 +8,7 @@ photometry uses sparse CPU float64 scoring. CUDA is experimental.
 ```sh
 git clone https://github.com/oklo/planet-nine-search.git
 cd planet-nine-search
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 pip install .
 p9 worker --directory ./work --max-disk-gb 12 --reserve-gb 20
