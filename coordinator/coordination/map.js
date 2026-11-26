@@ -44,13 +44,13 @@ async function showCandidates(container) {
     if (!response.ok) throw new Error();
     const rows = await response.json();
     if (!rows.length) {
-      container.textContent = 'No candidates awaiting follow-up.';
+      container.textContent = 'No candidates currently pass image review.';
       return;
     }
     const table = document.createElement('table');
     table.className = 'candidate-list';
-    const headers = ['Candidate', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
-    const descriptions = ['Candidate', 'TESS magnitude', 'Radius in Earth radii, assuming geometric albedo 0.4 and V − T = 0.5',
+    const headers = ['Field · path', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
+    const descriptions = ['Field and trial path number', 'TESS magnitude', 'Radius in Earth radii, assuming geometric albedo 0.4 and V − T = 0.5',
       'Estimated mass in Earth masses, using 3 Earth masses per Earth radius over the catalog range of 1–6.61 Earth radii', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
     const head = table.createTHead().insertRow();
     headers.forEach((title, index) => {
@@ -150,7 +150,7 @@ function curve(points, attributes, parent) {
 function candidateLabel(field) {
   if (!Number.isInteger(field.candidate_count)) return 'Candidate count unavailable';
   return field.candidate_count === 0 ? 'No candidate traces' :
-    `${field.candidate_count} candidate trace${field.candidate_count === 1 ? '' : 's'}`;
+    `${field.candidate_count} trial path${field.candidate_count === 1 ? '' : 's'}`;
 }
 
 function candidatePage(field) {
@@ -530,10 +530,23 @@ async function initialize() {
     if (!response.ok) throw new Error('Snapshot unavailable');
     data = await response.json();
     if (data.schema_version !== 1 || !Array.isArray(data.fields)) throw new Error('Unsupported snapshot');
-    data.fields = data.fields.filter(field => Object.hasOwn(STATES, field.state));
+    const publicList = await fetch('candidate.php?list=1', {cache: 'no-store'});
+    if (!publicList.ok) throw new Error('Candidate list unavailable');
+    const paths = new Map();
+    for (const row of await publicList.json()) {
+      if (!paths.has(row.field)) paths.set(row.field, new Set());
+      paths.get(row.field).add(row.number);
+    }
+    data.fields = data.fields.filter(field => Object.hasOwn(STATES, field.state) &&
+      (field.state !== 'needs_followup' || paths.has(field.code)));
+    for (const field of data.fields.filter(f => f.state === 'needs_followup')) {
+      field.candidate_count = paths.get(field.code).size;
+    }
+    data.field_counts.needs_followup = data.fields.filter(f => f.state === 'needs_followup').length;
+    data.physical_followup_flags = data.fields.reduce((n, f) => n + (f.state === 'needs_followup' ? f.candidate_count : 0), 0);
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
-    $('followup-count').textContent = data.physical_followup_flags;
+    $('followup-count').textContent = data.fields.filter(f => f.state === 'needs_followup' && f.candidate_count > 0).length;
     displayRecovery(false);
     for (const [state, info] of Object.entries(STATES)) {
       if (state === 'unsearchable' && !data.field_counts[state]) continue;
@@ -545,7 +558,7 @@ async function initialize() {
       const count = data.field_counts[state] || 0;
       if (state === 'needs_followup') {
         const traces = data.physical_followup_flags;
-        item.append(`${traces} live candidate${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
+        item.append(`${traces} trial path${traces === 1 ? '' : 's'} in ${count} ${count === 1 ? 'field' : 'fields'}`);
       } else {
         item.append(state === 'complete' ? info.label : `${info.label} (${count})`);
       }

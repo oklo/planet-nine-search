@@ -14,10 +14,22 @@ foreach ($snapshot['fields'] as $field) {
         $active[$field['code']] = $field['retained_candidate_flags'] ?? range(1, $field['candidate_count']);
     }
 }
+$orbits = is_file("$dir/orbits.json") ? json_decode(file_get_contents("$dir/orbits.json"), true) : [];
+$public = [];
+foreach ($snapshot['fields'] as $field) {
+    $name = $field['code'];
+    if (!isset($active[$name])) continue;
+    $record = $orbits[$name] ?? [];
+    $ids = $active[$name];
+    sort($ids, SORT_NUMERIC);
+    if (($record['task_id'] ?? null) !== ($field['task_id'] ?? null)
+        || ($record['reviewed_paths'] ?? []) !== $ids) continue;
+    $selected = array_values(array_intersect($ids, $record['public_paths'] ?? []));
+    if ($selected) $public[$name] = $selected;
+}
 if (isset($_GET['list'])) {
-    $orbits = is_file("$dir/orbits.json") ? json_decode(file_get_contents("$dir/orbits.json"), true) : [];
     $rows = [];
-    foreach ($active as $name => $numbers) {
+    foreach ($public as $name => $numbers) {
         foreach ($numbers as $n) {
             $rows[] = ['field' => $name, 'number' => $n, 'orbit' => $orbits[$name]['rows'][$n] ?? null];
         }
@@ -79,7 +91,7 @@ if (!$ids) http_response_code(410);
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
 <?php foreach ($ids as $id): $id = (int)$id; ?>
-<section id="candidate-<?= $id ?>"><h3>Candidate <?= $id ?></h3>
+<section id="candidate-<?= $id ?>"><h3><?= in_array($id, $public[$code] ?? [], true) ? 'Candidate path' : 'Diagnostic path' ?> <?= $id ?></h3>
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
