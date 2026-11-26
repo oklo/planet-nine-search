@@ -58,7 +58,7 @@
       <div class="map-frame">
         <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map">
           <title>planet nine search fields</title>
-          <desc>Purple is the surviving reference population. Colored outlines mark sector image footprints. Use the view buttons and select a field on the map to explore.</desc>
+          <desc>Shading shows where the Brown–Batygin model places Planet Nine if it exists. Colored outlines mark sector image footprints. Use the view buttons and select a field on the map to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
             <ellipse cx="500" cy="250" rx="500" ry="250" fill="var(--map-surface)"/>
@@ -80,7 +80,7 @@
       <div class="reference-legend">
         <span><i class="line galactic"></i>Galactic plane</span>
         <span><i class="line ecliptic"></i>Ecliptic</span>
-        <span class="density-key"><span>Reference density</span><i class="density-ramp"></i><span>0–0.08% / deg²</span></span>
+        <span class="density-key"><span>Predicted location of Planet Nine</span><i class="density-ramp"></i><span>0–0.08% / deg²</span></span>
       </div>
     </section>
     <section class="queue-panel" aria-label="Search queue">
@@ -110,7 +110,7 @@
     </div>
     <details class="map-notes">
       <summary>Reading the map</summary>
-      <p>Purple shading is the density of 21,740 surviving reference orbits at the 2018 reference epoch, smoothed by 2°. Right ascension increases to the left; the ecliptic uses J2000.</p>
+      <p>The shading shows where Planet Nine would have appeared in 2018 for 21,740 possible orbits from the Brown–Batygin model. The scale gives the percentage of modeled locations per square degree, smoothed over 2°. Right ascension increases to the left; the ecliptic uses J2000.</p>
       <p>Outlines are sector image footprints, including overlapping and unsearched pixels. The faintest green marks an assessed field with no demonstrated sensitivity. Stronger shading reflects recovery of injected test planets.</p>
       <p>Zooming into a field shows the faintest recovered injection within the field. An &quot;unresolved flag&quot; is a trial trajectory that exceeded the field’s control scores. Several trajectories can flag the same residual, so this is not a count of distinct objects. Hollow green squares mark fields with open traces. A dash means flags were not assessed.</p>
       <p>Flags are screened against the local orbital and physical ranges of the <a href="https://data.caltech.edu/records/8fjad-x7y61">Brown reference population</a>, with allowances for sampling and measurement uncertainty. Rejected trials remain in the historical record. These classifications are conditional on the adopted planet-nine population.</p>
