@@ -10,7 +10,7 @@ const STATES = {
 const $ = id => document.getElementById(id);
 const metricDescriptions = {
   population: 'The share of the Brown–Batygin reference population recovered in injection tests.',
-  searched: 'Fields where the moving-object search ran. Some still have flags to review or recovery tests to finish.',
+  searched: 'A typical field is a patch of sky 140 TESS pixels on a side, about 0.8° across. We usually search it in three or four TESS observing periods (sectors). Each field counts once after the search runs, even where neighboring fields overlap.',
 };
 const metricInfo = $('metric-info');
 const topClose = $('candidate-top-close');
