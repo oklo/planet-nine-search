@@ -1,0 +1,38 @@
+{
+  "N52304246": {
+    "task_id": "2262124c22b820fcb95bfc24c6fe5d98258a963666425a58ba2a647cb1e69f06",
+    "paths": {
+      "4": {
+        "title": "Two bright appearances, then a blank",
+        "text": "TESS measured 1.95 and 1.94 electrons per second along this path in sectors 1 and 28. In sector 106, where the same brightness should have stood out, it measured just 0.14 ± 0.24. In the sector 28 image, the light stretches vertically across the predicted position. Four trial paths cross much of the same light in the first two sectors. Sector 106 is where the paths separate, and this one comes up empty."
+      }
+    }
+  },
+  "N2843153": {
+    "task_id": "68f249e4f20bd2f567df4c0f910af3c04b9fbf10589707ea6f74018974d155ef",
+    "paths": {
+      "1": {
+        "title": "A spot that disappears in the middle",
+        "text": "In sectors 27 and 94, a small bright patch falls close to the predicted position. Now look at the intervening visit, sector 67. The measurement there is 0.26 ± 0.25 electrons per second, consistent with zero. We also checked a fourth visit, sector 105, which played no part in choosing the path. A nearby comparison path gave a stronger signal than the predicted position."
+      }
+    }
+  },
+  "N50552277": {
+    "task_id": "593169b37b70632be110d1e6494efed15c7912f4dc6d8ed359ac7c6b021bf1f3",
+    "paths": {
+      "2": {
+        "title": "A repeat signal that fades",
+        "text": "The first two visits put light near the center, at 1.17 and 1.34 electrons per second. Sector 95 still gives a positive measurement, but it drops to 0.63 ± 0.19. Could a small error in the predicted path explain the fading? In an independent visit, sector 105, we allowed the source to shift by up to two pixels. Five of eight nearby comparison paths produced a peak at least as bright when given the same freedom."
+      }
+    }
+  },
+  "N2960207": {
+    "task_id": "6c227c6044000e00452c7d7436cb1da8d1c36be35cd75f56a36d1f4b3312dc9f",
+    "paths": {
+      "1": {
+        "title": "Three positive measurements in a crowded field",
+        "text": "Sectors 1 and 27 agree closely at 1.18 and 1.11 electrons per second. Sector 95 is roughly twice as bright. In sector 27 the light extends above the center. In sector 95 the bright and dark patches form a diagonal. Compare those shapes with the point-source model at right. Two further visits, sectors 67 and 105, both gave negative flux at the predicted position."
+      }
+    }
+  }
+}
