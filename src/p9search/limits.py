@@ -6,6 +6,13 @@ import time
 
 import psutil
 
+from .storage import GIB
+
+
+def worker_memory_gib(total_bytes):
+    """Use 60% of host RAM, rounded down to whole GiB and capped at 12."""
+    return max(1, min(12, 3 * total_bytes // (5 * GIB)))
+
 
 def check_process(pid, started, memory_bytes, seconds):
     if time.monotonic() - started > seconds:

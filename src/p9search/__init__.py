@@ -1,5 +1,5 @@
 """Distributed TESS moving-source search."""
 
-__version__ = "0.5.7"
+__version__ = "0.5.8"
 
 USER_AGENT = f"PlanetNineSearch/{__version__} (+https://github.com/oklo/planet-nine-search)"

@@ -11,6 +11,24 @@ from p9search.storage import DirectoryLock, DiskBudget, read_json
 from .test_tasks import specification
 
 
+@pytest.mark.parametrize(("host_gib", "expected"), [(8, 4), (15.5, 9), (16, 9), (32, 12), (64, 12)])
+def test_worker_uses_host_memory_unless_overridden(tmp_path, monkeypatch, host_gib, expected):
+    from p9search import cli
+    from p9search.storage import GIB
+
+    monkeypatch.setattr(
+        cli.psutil, "virtual_memory", lambda: SimpleNamespace(total=int(host_gib * GIB))
+    )
+    limits = []
+    monkeypatch.setattr(
+        worker, "work", lambda args, budget: limits.append((args.max_memory_gb, args.threads))
+    )
+    arguments = ["worker", "--directory", str(tmp_path)]
+    assert cli.main(arguments) == 0
+    assert cli.main([*arguments, "--max-memory-gb", "3.5", "--threads", "1"]) == 0
+    assert limits == [(expected, 2), (3.5, 1)]
+
+
 def test_stopping_a_search_waits_for_actual_process_exit():
     child = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True
