@@ -30,8 +30,8 @@ h2 { margin: 0; font-size: 1.3rem; line-height: 1.3; }
 .metrics strong { display: block; font-size: 1.8rem; font-weight: 500; line-height: 1.3; font-variant-numeric: tabular-nums; }
 .map-heading, .map-toolbar, .section-heading, .map-caption { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .map-heading { margin-bottom: .9rem; }
-.map-toolbar { flex-wrap: wrap; margin-bottom: .5rem; }
-.regions, .zoom-controls { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
+.map-toolbar { justify-content: flex-start; flex-wrap: wrap; margin-bottom: .5rem; }
+.zoom-controls { display: flex; align-items: center; gap: .25rem; flex-wrap: wrap; }
 button, select { min-height: 2.75rem; font-size: .78rem; color: var(--text); border: 1px solid var(--rule); border-radius: 3px; background: var(--bg); padding: .4rem .7rem; }
 button { cursor: pointer; }
 button:hover { border-color: var(--accent); }
@@ -46,6 +46,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 #metric-info p { margin: 1rem 0; line-height: 1.6; }
 #metric-info form { text-align: right; }
 .zoom-controls button { min-width: 2.75rem; padding: .3rem; font-size: 1.2rem; }
+#reset-view { font-size: .78rem; padding-inline: .7rem; }
 #zoom-level { min-width: 3.3rem; text-align: center; font: .75rem var(--sans); }
 .map-frame { position: relative; background: var(--map-frame); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
 #sky { display: block; width: 100%; aspect-ratio: 2; cursor: zoom-in; touch-action: none; }
@@ -132,8 +133,6 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
   .metrics strong { font-size: 1.55rem; }
   .metrics .metric-label { font-size: .72rem; }
   .state-legend, .reference-legend { font-size: .7rem; }
-  .regions { gap: .25rem; }
-  .regions button { font-size: .72rem; padding: .4rem .5rem; }
   .map-heading .small { font-size: .68rem; }
 }
 

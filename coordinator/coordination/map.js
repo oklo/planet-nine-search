@@ -241,7 +241,7 @@ function setView(next) {
   $('zoom-level').textContent = `${zoom < 10 ? zoom.toFixed(1).replace('.0', '') : Math.round(zoom)}×`;
   $('zoom-in').disabled = zoom >= MAX_ZOOM - .1;
   $('zoom-out').disabled = zoom <= 1.001;
-  for (const button of document.querySelectorAll('[data-region]')) button.setAttribute('aria-pressed', String(button.dataset.region === 'all' && zoom === 1));
+  $('reset-view').hidden = zoom <= 1;
 }
 
 function drawCoordinates(unit) {
@@ -451,21 +451,10 @@ sky.addEventListener('keydown', event => {
 $('zoom-in').addEventListener('click', () => zoomAt(1.7));
 $('zoom-out').addEventListener('click', () => zoomAt(1 / 1.7));
 $('clear-selection').addEventListener('click', () => selectField(null, false));
-for (const button of document.querySelectorAll('[data-region]')) {
-  button.addEventListener('click', () => {
-    const boxes = {north: [48, 102, 5, 30], crowded: [91, 100.5, 17, 27.4], south: [314.5, 321.5, -34, -28.7]};
-    const box = boxes[button.dataset.region];
-    const southern = button.dataset.region === 'south' && data
-      ? data.fields.filter(f => f.ra_deg > 300 && f.ra_deg < 330 && f.dec_deg < 0).flatMap(f => f.footprints.flatMap(p => p.ra_dec_deg)) : [];
-    if (southern.length) fitPoints(southern, 1.1);
-    else if (!box) setView({x: 0, y: 0, width: 1000});
-    else {
-      const [left, right, bottom, top] = box;
-      fitPoints([[left, bottom], [left, top], [right, bottom], [right, top]], 1.1);
-    }
-    button.setAttribute('aria-pressed', 'true');
-  });
-}
+$('reset-view').addEventListener('click', () => {
+  setView({x: 0, y: 0, width: 1000});
+  $('zoom-in').focus({preventScroll: true});
+});
 new ResizeObserver(() => setView(view)).observe(sky);
 
 async function updateQueue() {

@@ -7,8 +7,8 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=21">
-  <script src="map.js?v=37" type="module"></script>
+  <link rel="stylesheet" href="map.css?v=22">
+  <script src="map.js?v=38" type="module"></script>
 </head>
 <body>
   <a class="skip-link screen-reader-text" href="#primary-content">Skip to content</a>
@@ -43,22 +43,17 @@
         <span class="small">Equatorial · Mollweide</span>
       </div>
       <div class="map-toolbar" aria-label="Map views">
-        <div class="regions">
-          <button type="button" data-region="all" aria-pressed="true">All sky</button>
-          <button type="button" data-region="north" aria-pressed="false">Northern fields</button>
-          <button type="button" data-region="crowded" aria-pressed="false">Crowded region</button>
-          <button type="button" data-region="south" aria-pressed="false">Southern fields</button>
-        </div>
         <div class="zoom-controls">
           <button id="zoom-out" type="button" aria-label="Zoom out">−</button>
           <output id="zoom-level" aria-label="Map zoom">1×</output>
           <button id="zoom-in" type="button" aria-label="Zoom in">+</button>
+          <button id="reset-view" type="button" hidden>Reset</button>
         </div>
       </div>
       <div class="map-frame">
         <svg id="sky" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 500" tabindex="0" role="group" aria-label="Interactive sky map">
           <title>planet nine search fields</title>
-          <desc>Shading shows where the Brown–Batygin model places Planet Nine if it exists. Colored outlines mark sector image footprints. Use the view buttons and select a field on the map to explore.</desc>
+          <desc>Shading shows where the Brown–Batygin model places Planet Nine if it exists. Colored outlines mark sector image footprints. Select a field on the map to explore.</desc>
           <defs><clipPath id="sky-clip"><ellipse cx="500" cy="250" rx="500" ry="250"/></clipPath></defs>
           <g clip-path="url(#sky-clip)">
             <ellipse cx="500" cy="250" rx="500" ry="250" fill="var(--map-surface)"/>
