@@ -139,10 +139,8 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 
 #worker-prompt { margin: .75rem 0; padding: .65rem 1rem; border-left: 2px solid var(--accent); background: var(--code-bg); overflow-wrap: anywhere; }
 
-.evidence-page { max-width: calc(29rem + 2 * var(--gutter)); margin: 0; }
-.evidence-page .site-header .band { min-height: 6.5rem; padding-block: 1rem; }
-.evidence-page .site-title { font-size: 1.9rem; }
 .evidence-page .site-main { padding-top: .75rem; }
+.evidence-page .site-main > section { max-width: 29rem; }
 .evidence-page .site-main > p { margin: 0 0 .6rem; }
 .evidence-page section h3 { margin: .75rem 0 .4rem; }
 .candidate-figure { margin: .4rem 0 .75rem; }
