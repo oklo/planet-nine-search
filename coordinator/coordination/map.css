@@ -155,3 +155,5 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .candidate-list th:first-child, .candidate-list td:first-child { text-align: left; white-space: nowrap; }
 .candidate-votes { display: flex; gap: .5rem; margin: 0 0 2rem; }
 .candidate-votes span { margin-left: .3rem; font-variant-numeric: tabular-nums; }
+
+.site-header .site-description { text-transform: none; }
