@@ -34,7 +34,9 @@ function dispatch(PDO $db, string $action, array $body): array
         $queues = ["pending" => [], "leased" => [], "submitted" => []];
         foreach (query($db, "SELECT id,spec,state,started FROM tasks WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
             $task = json_decode($row["spec"], true, 32, JSON_THROW_ON_ERROR);
-            $field = ["task_id" => $row["id"], "label" => $task["label"] ?? $row["id"]];
+            [$minimum, $maximum] = $task["policy"]["distance_au"] ?? [200, 1500];
+            $label = preg_replace('/\s+\d+\s*[-–—]\s*\d+\s*au\s*$/iu', '', $task["label"] ?? $row["id"]);
+            $field = ["task_id" => $row["id"], "label" => "$label {$minimum}–{$maximum} au"];
             if ($row["state"] === "leased") {
                 $field["started"] = (int) $row["started"];
             }
