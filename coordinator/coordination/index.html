@@ -7,7 +7,7 @@
   <meta name="description" content="planet nine search coordination and TESS field coverage.">
   <title>planet nine · search coordination — oklo</title>
   <link rel="stylesheet" href="/wp-content/themes/oklo/style.css">
-  <link rel="stylesheet" href="map.css?v=19">
+  <link rel="stylesheet" href="map.css?v=20">
   <script src="map.js?v=34" type="module"></script>
 </head>
 <body>
@@ -76,11 +76,13 @@
       <div class="map-caption">
         <button id="clear-selection" type="button" hidden>Clear selection</button>
       </div>
+      <div class="reference-legend density-legend">
+        <span class="density-key"><i class="density-ramp"></i><span>Odds Planet Nine is here</span><span>0–0.08% / deg²</span></span>
+      </div>
       <div id="state-legend" class="state-legend" aria-label="Field states"></div>
       <div class="reference-legend">
         <span><i class="line galactic"></i>Galactic plane</span>
         <span><i class="line ecliptic"></i>Ecliptic</span>
-        <span class="density-key"><i class="density-ramp"></i><span>Odds Planet Nine is here</span><span>0–0.08% / deg²</span></span>
       </div>
     </section>
     <section class="queue-panel" aria-label="Search queue">

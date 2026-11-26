@@ -71,6 +71,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .state-legend .recovery-scale { background: linear-gradient(to right, color-mix(in srgb, var(--state-color) 12%, transparent), color-mix(in srgb, var(--state-color) 71.5%, transparent)); }
 .state-legend .circle { background: var(--map-surface); border-radius: 50%; }
 .reference-legend { margin-top: .8rem; }
+.density-legend { margin: 0 0 .45rem; }
 .reference-legend > span { display: inline-flex; align-items: center; gap: .5rem; }
 .line { width: 1.25rem; border-top: 1.5px solid; display: inline-block; }
 .galactic { color: var(--map-galactic); border-top-style: dashed; }
