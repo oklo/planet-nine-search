@@ -150,6 +150,11 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .evidence-page section h3 { margin: .75rem 0 .4rem; }
 .candidate-figure { margin: .4rem 0 .75rem; }
 .candidate-figure img { display: block; width: 100%; height: auto; }
+.candidate-figure .figure-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+  .candidate-figure .figure-light { display: none; }
+  .candidate-figure .figure-dark { display: block; }
+}
 .path-estimates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .5rem 1rem; }
 .path-estimates h4, .path-sky h4 { margin: .5rem 0; }
 .path-estimates dl, .path-sky dl { display: grid; grid-template-columns: 1fr auto; gap: .32rem .5rem; margin: 0; font: .85rem var(--sans); }

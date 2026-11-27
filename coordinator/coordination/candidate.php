@@ -68,6 +68,8 @@ if (isset($_GET['image'])) {
         http_response_code(404);
         exit;
     }
+    $nightPath = "$dir/$code-$id-dark.png";
+    if (($_GET['theme'] ?? '') === 'dark' && is_file($nightPath)) $path = $nightPath;
     header('Content-Type: image/png');
     readfile($path);
     exit;
@@ -114,8 +116,8 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=35">
-<script type="module" src="orbit-view.mjs?v=1"></script>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=36">
+<script type="module" src="orbit-view.mjs?v=2"></script>
 <script type="module" src="sky-finder.mjs?v=1"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
@@ -128,7 +130,13 @@ function sexagesimal(float $degrees, bool $hours): string {
 <div class="path-columns"><div class="path-assets">
 <?php if ($note): ?><p><?= htmlspecialchars($note['text']) ?></p><?php endif; ?>
 <?php if (is_file("$dir/$code-$id.png")): ?>
-<figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
+<figure class="candidate-figure">
+<?php [$figureWidth, $figureHeight] = getimagesize("$dir/$code-$id.png");
+$themes = is_file("$dir/$code-$id-dark.png") ? ['light', 'dark'] : ['default'];
+foreach ($themes as $theme):
+    $src = "?field=$code&amp;image=$id" . ($theme === 'dark' ? '&amp;theme=dark' : ''); ?>
+<a class="figure-<?= $theme ?>" href="<?= $src ?>"><img width="<?= (int)$figureWidth ?>" height="<?= (int)$figureHeight ?>" loading="lazy" src="<?= $src ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a>
+<?php endforeach; ?></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
 <?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
 <form method="post" class="candidate-votes" action="?field=<?= $code ?>">

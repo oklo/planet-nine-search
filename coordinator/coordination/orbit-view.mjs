@@ -22,6 +22,7 @@ function mount(root,catalog) {
   const current=relative(data.position);
   const planets=catalog.planets.map(body => marker(body,true));
   const kbos=catalog.kbos.map(body => marker(body,false));
+  const detached=kbos.filter(body => body.detached);
   const sun={name:'Sun',point:[0,0,0],color:palette.sun};
   const target={name:'Trial position · '+data.epoch+' UTC',point:current,color:palette.trial};
   const pointers=new Map();
@@ -29,7 +30,9 @@ function mount(root,catalog) {
   let track=[],lastScale=0;
   function marker(body,planet) {
     const o=catalogOrbit(body,data.jd);
-    return {...body,orbit:o,point:atMean(o,o.m),planet,color:planet?palette.planets:body.rank?palette.largest:palette.detached};
+    const center=o.p.map(value => -o.a*o.e*value);
+    const outline=[center, ellipsePoint(o,0), ellipsePoint(o,Math.PI/2)];
+    return {...body,orbit:o,outline,point:atMean(o,o.m),planet,color:planet?palette.planets:body.rank?palette.largest:palette.detached};
   }
   function reset() {
     const mode=view.value;
@@ -71,12 +74,30 @@ function mount(root,catalog) {
       if (closed) ctx.closePath();
       ctx.strokeStyle=color; ctx.lineWidth=width; ctx.stroke();
     }
+    function outlines(bodies,color,width) {
+      // The sky-plane projection of an orbit is an affine image of a unit circle.
+      // Restore the canvas transform before stroking so every orbit gets the same hairline.
+      ctx.beginPath();
+      for (const body of bodies) {
+        const [center,major,minor]=body.outline.map(project);
+        ctx.save();
+        ctx.transform(major[0]-center[0],major[1]-center[1],
+                      minor[0]-center[0],minor[1]-center[1],center[0],center[1]);
+        ctx.moveTo(1,0);
+        ctx.arc(0,0,1,0,TAU);
+        ctx.closePath();
+        ctx.restore();
+      }
+      ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+    }
     function mark(body,r,label=false) {
       const [x,y]=project(body.point);
       if (x<0 || y<0 || x>W || y>H) return;
-      ctx.fillStyle=body.color;ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
-      if (body.detached && body.rank && layers.detached && layers.largest) {
-        ctx.strokeStyle=palette.detached;ctx.lineWidth=1;ctx.beginPath();ctx.arc(x,y,r+1,0,TAU);ctx.stroke();
+      ctx.fillStyle=body.color;
+      if (body.orbit && !body.planet) {
+        ctx.fillRect(x-r,y-r,2*r,2*r);
+      } else {
+        ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
       }
       if (label) {ctx.font='11px system-ui';ctx.fillStyle=body.color;ctx.fillText(body===target?'Trial position':body.name,x+7,y-6);}
       hit.push({x,y,body});
@@ -89,12 +110,9 @@ function mount(root,catalog) {
     const extent=Math.max(span*3,60);
     line([[-extent,0,0],[extent,0,0]],'#243a48',.65);
     line([[0,-extent,0],[0,extent,0]],'#243a48',.65);
-    if (layers.planets) for (const body of planets) {
-      line(Array.from({length:129},(_,i)=>ellipsePoint(body.orbit,i*TAU/128)), '#6387ae88',.8);
-    }
-    if (selected?.orbit && !selected.planet) {
-      line(Array.from({length:241},(_,i)=>ellipsePoint(selected.orbit,i*TAU/240)),selected.color,.85);
-    }
+    if (layers.detached) outlines(detached,'#b8a0ec60',.55);
+    if (layers.planets) outlines(planets,'#6387ae88',.8);
+    if (selected?.orbit && !selected.planet) outlines([selected],selected.color,.85);
     if (trial) {
       if (lastScale!==scale) {track=trialTrack(trial,scale);lastScale=scale;}
       line(track,palette.trial,.7,Boolean(trial.period),true);
@@ -110,7 +128,7 @@ function mount(root,catalog) {
     for (const body of kbos) {
       if ((layers.largest && body.rank) || (layers.detached && body.detached)) {
         body.color=layers.largest && body.rank?palette.largest:palette.detached;
-        mark(body,body.rank && layers.largest?2.35:1.8);
+        mark(body,body.rank && layers.largest?1.2:.9);
       }
     }
     if (layers.planets) {
@@ -122,7 +140,7 @@ function mount(root,catalog) {
       }
     }
     mark(sun,3.7);mark(target,4.4,true);
-    if(selected) {
+    if(selected && (!selected.orbit || selected.planet)) {
       const [x,y]=project(selected.point);ctx.strokeStyle='#fff';ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(x,y,6,0,TAU);ctx.stroke();
     }
