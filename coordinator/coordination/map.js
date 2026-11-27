@@ -47,37 +47,15 @@ async function showCandidates(container) {
       container.textContent = 'There are currently no paths on display for visual review.';
       return;
     }
-    const table = document.createElement('table');
-    table.className = 'candidate-list';
-    const headers = ['Field · path', 'T', 'R', 'M', 'Δ (au)', 'a (au)', 'e', 'i (°)'];
-    const descriptions = ['Field and trial path number', 'TESS magnitude', 'Radius in Earth radii, assuming geometric albedo 0.4 and V − T = 0.5',
-      'Estimated mass in Earth masses, using 3 Earth masses per Earth radius over the catalog range of 1–6.61 Earth radii', 'Observer distance', 'Semimajor axis', 'Eccentricity', 'Inclination'];
-    const head = table.createTHead().insertRow();
-    headers.forEach((title, index) => {
-      const cell = textNode('th', '', head);
-      cell.scope = 'col';
-      cell.title = descriptions[index];
-      cell.textContent = title;
-      if (title === 'R' || title === 'M') textNode('sub', '⊕', cell);
-    });
-    const body = table.createTBody();
-    for (const {field, number, orbit, title} of rows) {
-      const row = body.insertRow();
-      const cell = row.insertCell();
-      textNode('a', field + ' · ' + number, cell).href =
-        'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
-      if (title) textNode('small', title, cell);
-      for (const [key, digits] of [['T', 1], ['radius', 1], ['mass', 1], ['distance', 0], ['a', 0], ['e', 2], ['i', 1]]) {
-        const radius = orbit?.radius;
-        const value = key === 'mass'
-          ? (radius >= 1 && radius <= 6.61 ? 3 * radius : null)
-          : orbit?.[key];
-        row.insertCell().textContent = Number.isFinite(value) ? value.toFixed(digits) : '—';
-      }
+    const list = document.createElement('ul');
+    list.className = 'candidate-list';
+    for (const {field, number, title} of rows) {
+      const item = textNode('li', '', list);
+      const link = textNode('a', field + ' · Path ' + number, item);
+      link.href = 'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
+      if (title) textNode('small', title, item);
     }
-    container.replaceChildren();
-    textNode('p', 'These trial paths are open for visual review. Select a field and path to compare the TESS images and vote on whether you see a moving object.', container);
-    container.append(table);
+    container.replaceChildren(list);
   } catch {
     container.textContent = 'Candidate list unavailable.';
   }
