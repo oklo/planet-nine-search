@@ -24,6 +24,12 @@ function surveyImage(url, signal) {
   });
 }
 
+const nearby = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) entry.target.querySelector('form').requestSubmit();
+  }
+}, {rootMargin:'300px'});
+
 function mount(root) {
   const form = root.querySelector('form');
   const coordinates = root.querySelector('.finder-coordinates');
@@ -48,12 +54,14 @@ function mount(root) {
   marker.addEventListener('click', () => showMarker(cross.hidden));
   form.addEventListener('submit', async event => {
     event.preventDefault();
+    nearby.unobserve(root);
     pending?.abort();
     pending = new AbortController();
     const signal = pending.signal;
     const date = new Date(form.elements.utc.value + 'Z');
     const width = Number(form.elements.width.value);
-    result.hidden = true;
+    result.hidden = false;
+    result.setAttribute('aria-busy', 'true');
     coordinates.textContent = '';
     status.textContent = 'Calculating position…';
     try {
@@ -76,13 +84,17 @@ function mount(root) {
       frame.querySelector('img').replaceWith(image);
       frame.style.setProperty('--box-side',chart.boxPercent+'%');
       result.querySelector('.finder-scale').textContent = width+'′ search box · '+chart.fieldMinutes+'′ field';
-      showMarker(true);
-      showPlanet(false);
       status.textContent = '';
-      result.hidden = false;
+      result.setAttribute('aria-busy', 'false');
     } catch (error) {
-      if (!signal.aborted) status.textContent = error instanceof Error ? error.message : 'Unable to calculate this observation.';
+      if (signal.aborted) return;
+      result.hidden = true;
+      result.setAttribute('aria-busy', 'false');
+      status.textContent = error instanceof Error ? error.message : 'Unable to calculate this observation.';
     }
   });
+  result.hidden = false;
+  if (root.closest('section')?.matches(':target')) form.requestSubmit();
+  else nearby.observe(root);
 }
 document.querySelectorAll('.sky-finder').forEach(mount);

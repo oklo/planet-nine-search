@@ -210,7 +210,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 
 .site-header .site-description { text-transform: none; }
 
-.sky-finder { border-top: 1px solid var(--rule); margin: .85rem 0 1rem; padding-top: .75rem; }
+.sky-finder { margin: .2rem 0 1rem; border-bottom: 1px solid var(--rule); padding-bottom: .75rem; }
 .sky-finder h4 { margin: 0 0 .5rem; }
 .finder-form, .finder-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .5rem .8rem; }
 .finder-form label { display: grid; min-width: 0; gap: .18rem; font: .78rem/1.4 var(--sans); }
@@ -223,6 +223,9 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden] { display: none; }
 .finder-result { margin: .4rem 0 0; max-width: 36rem; }
 .finder-frame { position: relative; background: #0c1820; overflow: hidden; border-radius: .4rem; aspect-ratio: 1; }
+.finder-result[aria-busy=true] .finder-frame > *,
+.finder-result[aria-busy=true] .finder-controls,
+.finder-result[aria-busy=true] figcaption { visibility: hidden; }
 .finder-frame img { display: block; width: 100%; height: 100%; }
 .finder-box, .finder-cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; box-sizing: border-box; }
 .finder-box { width: var(--box-side); aspect-ratio: 1; border: 1px dashed #a8e4ee; box-shadow: 0 0 0 1px #15252e88; }
