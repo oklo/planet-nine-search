@@ -35,18 +35,16 @@ export function tangentPoint(position, center, fieldMinutes) {
 }
 
 export function skyTrack(prediction, date, fieldMinutes) {
-  const commands = [];
-  let connected = false;
-  const halfSpanDays = 2.5 * 365.25;
-  const halfSteps = Math.ceil(halfSpanDays / 3);
-  for (let step=-halfSteps; step<=halfSteps; step++) {
-    const day = halfSpanDays * step / halfSteps;
-    const position = prediction.at(new Date(date.getTime() + day*86400000));
-    const point = tangentPoint(position, prediction, fieldMinutes);
-    if (point) commands.push((connected ? 'L' : 'M') + point.map(value=>value.toFixed(4)).join(' '));
-    connected = Boolean(point);
-  }
-  return commands.join(' ');
+  const start = new Date(date);
+  start.setUTCFullYear(date.getUTCFullYear() - 1);
+  // February 29 rolls to March 1 in a non-leap year. Use February's last day.
+  if (start.getUTCMonth() !== date.getUTCMonth()) start.setUTCDate(0);
+  const duration = date.getTime() - start.getTime();
+  const steps = Math.ceil(duration / (3 * 86400000));
+  return Array.from({length:steps+1}, (_,i) => {
+    const sample = new Date(start.getTime() + duration*i/steps);
+    return tangentPoint(prediction.at(sample),prediction,fieldMinutes);
+  });
 }
 
 export function sexagesimal(degrees, hours) {

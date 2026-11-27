@@ -1,4 +1,20 @@
-import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=3';
+import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=4';
+
+function drawTrail(layer, points) {
+  const paths = document.createDocumentFragment();
+  for (let i=1; i<points.length; i++) {
+    const from=points[i-1], to=points[i];
+    if (!from || !to) continue;
+    const segment=document.createElementNS('http://www.w3.org/2000/svg','path');
+    segment.setAttribute('d','M'+from.map(v=>v.toFixed(4)).join(' ')+' L'+to.map(v=>v.toFixed(4)).join(' '));
+    segment.setAttribute('vector-effect','non-scaling-stroke');
+    // Brightness follows time even when annual parallax makes the path turn back.
+    const progress=(i-.5)/(points.length-1);
+    segment.setAttribute('stroke-opacity',(0.82*progress**1.5).toFixed(4));
+    paths.append(segment);
+  }
+  layer.replaceChildren(paths);
+}
 
 function surveyImage(url, signal) {
   return new Promise((resolve, reject) => {
@@ -91,7 +107,7 @@ function mount(root) {
       if (signal.aborted) return;
       if (!image) throw new Error('The survey image is unavailable. Use Find on sky to retry.');
       frame.querySelector('img').replaceWith(image);
-      frame.querySelector('.finder-track path').setAttribute('d',track);
+      drawTrail(trackLayer,track);
       frame.style.setProperty('--box-side',chart.boxPercent+'%');
       result.querySelector('.finder-scale').textContent = width+'′ search box · '+chart.fieldMinutes+'′ field';
       status.textContent = '';

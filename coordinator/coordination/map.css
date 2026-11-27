@@ -233,7 +233,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .finder-coordinates { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .finder-position { display: flex; flex-wrap: wrap; column-gap: .85rem; }
 .finder-track { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.finder-track path { fill: none; stroke: #ffbd77; stroke-opacity: .57; stroke-width: .8px; stroke-linecap: round; stroke-linejoin: round; }
+.finder-track path { fill: none; stroke: #ffbd77; stroke-width: .8px; stroke-linecap: butt; stroke-linejoin: round; }
 .finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden], .finder-track[hidden] { display: none; }
 .finder-result { margin: .4rem 0 0; }
 .finder-frame { position: relative; background: #0c1820; overflow: hidden; border-radius: .4rem; aspect-ratio: 1; }
