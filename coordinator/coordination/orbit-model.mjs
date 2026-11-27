@@ -72,6 +72,12 @@ function hyperbolicPoint(o, years) {
   return planePoint(o,Math.cosh(H)-o.e,-Math.sqrt(o.e*o.e-1)*Math.sinh(H));
 }
 
+export function trialPositionAt(orbit, days) {
+  if (!orbit) throw new Error('This path has no usable trial orbit.');
+  if (orbit.e > 1) return hyperbolicPoint(orbit, days / 365.25);
+  return atMean(orbit, orbit.m + orbit.n * days);
+}
+
 // Each marker time is an integer multiple of five years from the displayed epoch.
 // At extreme periods, suppress coincident subpixel markers using the maximum orbital speed.
 export function trialTrack(o, pixelsPerAU) {

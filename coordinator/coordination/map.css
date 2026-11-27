@@ -203,3 +203,31 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .candidate-votes span { margin-left: .3rem; font-variant-numeric: tabular-nums; }
 
 .site-header .site-description { text-transform: none; }
+
+.sky-finder { border-top: 1px solid var(--rule); margin: .85rem 0 1rem; padding-top: .75rem; }
+.sky-finder h4 { margin: 0 0 .5rem; }
+.finder-form, .finder-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .5rem .8rem; }
+.finder-form label { display: grid; min-width: 0; gap: .18rem; font: .78rem/1.4 var(--sans); }
+.finder-form input, .finder-form select, .finder-form button, .finder-marker, .finder-planet { box-sizing: border-box; max-width: 100%; min-height: 2.2rem; border: 1px solid var(--rule); border-radius: .3rem; padding: .25rem .5rem; background: var(--map-frame); color: inherit; font: .85rem/1.4 var(--sans); }
+.finder-form button, .finder-marker, .finder-planet { cursor: pointer; }
+.finder-form button { color: #f4f8fa; background: #193746; border-color: #193746; }
+.finder-coordinates, .finder-status, .finder-result figcaption, .finder-controls { font: .8rem/1.5 var(--sans); }
+.finder-coordinates, .finder-status { margin: .55rem 0; }
+.finder-coordinates { font-variant-numeric: tabular-nums; }
+.finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden] { display: none; }
+.finder-result { margin: .4rem 0 0; max-width: 36rem; }
+.finder-frame { position: relative; background: #0c1820; overflow: hidden; border-radius: .4rem; aspect-ratio: 1; }
+.finder-frame img { display: block; width: 100%; height: 100%; }
+.finder-box, .finder-cross { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); pointer-events: none; box-sizing: border-box; }
+.finder-box { width: var(--box-side); aspect-ratio: 1; border: 1px dashed #a8e4ee; box-shadow: 0 0 0 1px #15252e88; }
+.finder-cross { width: 32px; height: 32px; color: #ffe45b; filter: drop-shadow(0 0 1px #231c00); background: linear-gradient(currentColor,currentColor) left center / 11px 2px no-repeat, linear-gradient(currentColor,currentColor) right center / 11px 2px no-repeat, linear-gradient(currentColor,currentColor) center top / 2px 11px no-repeat, linear-gradient(currentColor,currentColor) center bottom / 2px 11px no-repeat; }
+.finder-orientation { position: absolute; top: .45rem; left: .45rem; border-radius: .2rem; background: #09141dcc; color: white; padding: .15rem .35rem; font: .72rem var(--sans); }
+.finder-controls { align-items: center; justify-content: space-between; margin: .4rem 0; }
+.finder-marker::before { content: '+'; display: inline-block; margin-right: .35rem; font-weight: 700; }
+.finder-marker[aria-pressed=true] { background: #122730; color: #ffe45b; border-color: #334753; }
+.finder-result figcaption { color: var(--text-soft); }
+
+.finder-source { position: absolute; width: 7px; height: 7px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: radial-gradient(circle, #fff 0%, #f9f7e6 12%, #e6e5d6aa 32%, #eee8d224 64%, transparent 75%); pointer-events: none; }
+.finder-controls { justify-content: flex-start; gap: .35rem .5rem; }
+.finder-controls .finder-scale { margin-left: auto; }
+.finder-planet[aria-pressed=true] { color: #fff; background: #193746; border-color: #193746; }
