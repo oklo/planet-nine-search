@@ -60,11 +60,11 @@ if (!is_string($code) || !preg_match('/^N[0-9]{1,12}$/D', $code)) {
     http_response_code(404);
     exit;
 }
-$ids = array_unique(array_merge(array_keys($featured[$code] ?? []), $active[$code] ?? []));
+$publicIds = $public[$code] ?? [];
 if (isset($_GET['image'])) {
     $id = filter_var($_GET['image'], FILTER_VALIDATE_INT);
     $path = "$dir/$code-$id.png";
-    if (!in_array($id, $ids, true) || !is_file($path)) {
+    if (!in_array($id, $publicIds, true) || !is_file($path)) {
         http_response_code(404);
         exit;
     }
@@ -74,33 +74,44 @@ if (isset($_GET['image'])) {
     readfile($path);
     exit;
 }
+$isPost = $_SERVER['REQUEST_METHOD'] === 'POST';
+$requested = $_GET['candidate'] ?? ($isPost ? ($_POST['candidate'] ?? null) : null);
+$choose = !$isPost && $requested === null && count($publicIds) > 1;
+$id = $requested === null
+    ? (count($publicIds) === 1 ? $publicIds[0] : null)
+    : filter_var($requested, FILTER_VALIDATE_INT);
+if (!in_array($id, $publicIds, true)) $id = null;
+
+if ($isPost) {
+    if (($_SERVER['HTTP_ORIGIN'] ?? '') !== 'https://oklo.org') {
+        http_response_code(403);
+        exit;
+    }
+    $choice = $_POST['choice'] ?? '';
+    $voteId = filter_var($_POST['candidate'] ?? null, FILTER_VALIDATE_INT);
+    if ($id === null || $voteId !== $id || !in_array($choice, ['yes','maybe','no'], true)) {
+        http_response_code(400);
+        exit;
+    }
+}
 $votes = [];
-if ($ids) {
+if ($id !== null) {
     $db = new PDO('sqlite:' . dirname($dir) . '/candidate-votes.sqlite', null, null, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_TIMEOUT => 3
     ]);
     $db->exec('CREATE TABLE IF NOT EXISTS votes (field TEXT, candidate INTEGER, choice TEXT, total INTEGER NOT NULL, PRIMARY KEY(field,candidate,choice))');
-    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        if (($_SERVER['HTTP_ORIGIN'] ?? '') !== 'https://oklo.org') {
-            http_response_code(403);
-            exit;
-        }
-        $id = filter_var($_POST['candidate'] ?? null, FILTER_VALIDATE_INT);
-        $choice = $_POST['choice'] ?? '';
-        if (!in_array($id, $ids, true) || !in_array($choice, ['yes','maybe','no'], true)) {
-            http_response_code(400);
-            exit;
-        }
+    if ($isPost) {
         $save = $db->prepare('INSERT INTO votes VALUES (?,?,?,1) ON CONFLICT(field,candidate,choice) DO UPDATE SET total=total+1');
         $save->execute([$code,$id,$choice]);
-        header("Location: ?field=$code#candidate-$id", true, 303);
+        header("Location: ?field=$code&candidate=$id#candidate-$id", true, 303);
         exit;
     }
-    $read = $db->prepare('SELECT candidate, choice, total FROM votes WHERE field=?');
-    $read->execute([$code]);
-    foreach ($read as $row) $votes[$row['candidate']][$row['choice']] = (int)$row['total'];
+    $read = $db->prepare('SELECT choice,total FROM votes WHERE field=? AND candidate=?');
+    $read->execute([$code,$id]);
+    $votes = $read->fetchAll(PDO::FETCH_KEY_PAIR);
+} elseif (!$choose) {
+    http_response_code($requested === null ? 410 : 404);
 }
-if (!$ids) http_response_code(410);
 function estimate($value, int $digits, string $unit = ''): string {
     if ((!is_int($value) && !is_float($value)) || !is_finite($value)) return '—';
     return number_format($value, $digits, '.', '') . $unit;
@@ -115,18 +126,33 @@ function sexagesimal(float $degrees, bool $hours): string {
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<?php if ($requested === null && $publicIds): ?>
+<script>
+const legacyPath = /^#candidate-([1-9][0-9]*)$/.exec(location.hash);
+if (legacyPath && Number(legacyPath[1]) !== <?= json_encode($id) ?>) {
+    const url = new URL(location.href);
+    url.searchParams.set('candidate', legacyPath[1]);
+    location.replace(url);
+}
+</script>
+<?php endif; ?>
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=43">
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=44">
 <script type="module" src="orbit-view.mjs?v=4"></script>
 <script type="module" src="sky-finder.mjs?v=5"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
-<?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
-<?php foreach ($ids as $id): $id = (int)$id; $note = $featured[$code][$id] ?? null; ?>
+<?php if ($choose): ?>
+<ul class="candidate-list">
+<?php foreach ($publicIds as $number): ?>
+<li><a href="?field=<?= $code ?>&amp;candidate=<?= $number ?>#candidate-<?= $number ?>">Path <?= $number ?><?= isset($featured[$code][$number]) ? ' · ' . htmlspecialchars($featured[$code][$number]['title']) : '' ?></a></li>
+<?php endforeach; ?></ul>
+<?php elseif ($id === null): ?><p>No candidate workup is on display for this selection.</p>
+<?php else: $note = $featured[$code][$id] ?? null; ?>
 <section id="candidate-<?= $id ?>" class="path-evidence">
 <?php if ($note): ?>
 <h3>Path <?= $id ?> · <?= htmlspecialchars($note['title']) ?></h3>
-<?php else: ?><h3><?= in_array($id, $public[$code] ?? [], true) ? 'Candidate path' : 'Diagnostic path' ?> <?= $id ?></h3><?php endif; ?>
+<?php else: ?><h3>Candidate path <?= $id ?></h3><?php endif; ?>
 <div class="path-columns"><div class="path-assets">
 <?php if ($note): ?><p><?= htmlspecialchars($note['text']) ?></p><?php endif; ?>
 <?php if (is_file("$dir/$code-$id.png")): ?>
@@ -139,10 +165,10 @@ foreach ($themes as $theme):
 <?php endforeach; ?></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
 <?php if ($note): ?><p>Do these images persuade you that TESS detected a viable Planet Nine candidate?</p><?php endif; ?>
-<form method="post" class="candidate-votes" action="?field=<?= $code ?>">
+<form method="post" class="candidate-votes" action="?field=<?= $code ?>&amp;candidate=<?= $id ?>">
 <input type="hidden" name="candidate" value="<?= $id ?>">
 <?php foreach (['yes' => 'Compelling', 'maybe' => 'Maybe', 'no' => 'Not compelling'] as $key => $label): ?>
-<button name="choice" value="<?= $key ?>"><?= $label ?> <span><?= $votes[$id][$key] ?? 0 ?></span></button>
+<button name="choice" value="<?= $key ?>"><?= $label ?> <span><?= $votes[$key] ?? 0 ?></span></button>
 <?php endforeach; ?></form></div>
 <div class="path-orbit-panel">
 <?php $orbit = $pathEstimates[$code][$id] ?? null; if ($orbit):
@@ -213,4 +239,4 @@ foreach ($themes as $theme):
 <p class="estimate-note">The trial orbit assumes zero radial velocity. The radius estimate assumes a geometric albedo of 0.4 and V − T = 0.5. The mass estimate uses 3 Earth masses per Earth radius over the range 1–6.61 Earth radii.</p>
 <?php else: ?><p>Orbit and physical estimates are unavailable for this path.</p><?php endif; ?>
 </div></div></section>
-<?php endforeach; ?></main></body></html>
+<?php endif; ?></main></body></html>
