@@ -114,8 +114,9 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=33">
-<script type="module" src="orbit-view.mjs?v=1"></script></head>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=34">
+<script type="module" src="orbit-view.mjs?v=1"></script>
+<script type="module" src="sky-finder.mjs?v=1"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
@@ -184,6 +185,22 @@ function sexagesimal(float $degrees, bool $hours): string {
 <dt>Declination</dt><dd><?= sexagesimal($sky['dec_deg'], false) ?></dd>
 <dt>Constellation</dt><dd><?= htmlspecialchars($sky['constellation']) ?></dd></dl>
 <p class="estimate-note">Geocentric ICRS direction predicted by the trial orbit.</p></div>
+<div class="sky-finder">
+<h4>Observation finder</h4>
+<form class="finder-form">
+<label>Observation time (UTC)<input type="datetime-local" name="utc" value="<?= $epoch ?>T00:00" step="1" required></label>
+<label>Search box<select name="width"><option value="1">1′ square</option><option value="2">2′ square</option><option value="5" selected>5′ square</option><option value="10">10′ square</option><option value="20">20′ square</option></select></label>
+<button type="submit">Find on sky</button>
+</form>
+<p class="finder-coordinates" aria-live="polite"></p>
+<p class="finder-status" role="status"></p>
+<figure class="finder-result" hidden>
+<div class="finder-frame"><img alt="Digitized Sky Survey image centered on the trial prediction">
+<span class="finder-box" aria-hidden="true"></span><span class="finder-source" aria-hidden="true" hidden></span><span class="finder-cross" aria-hidden="true"></span>
+<span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span></div>
+<div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="false">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><span class="finder-scale"></span></div>
+<figcaption>Archival Digitized Sky Survey image. The yellow crosshair marks the trial position. The simulated point illustrates its location at the requested time. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
+</figure></div>
 <?php else: ?><p>Sky position unavailable for <?= $epoch ?> UTC.</p><?php endif; ?>
 <p class="estimate-note">The trial orbit assumes zero radial velocity. The radius estimate assumes a geometric albedo of 0.4 and V − T = 0.5. The mass estimate uses 3 Earth masses per Earth radius over the range 1–6.61 Earth radii.</p>
 <?php else: ?><p>Orbit and physical estimates are unavailable for this path.</p><?php endif; ?>
