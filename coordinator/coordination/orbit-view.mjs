@@ -27,7 +27,7 @@ function mount(root,catalog) {
   const kbos=catalog.kbos.map(body => marker(body,false));
   const detached=kbos.filter(body => body.detached);
   const sun={name:'Sun',point:[0,0,0],color:palette.sun};
-  const target={name:'current location · '+data.epoch+' UTC',point:current,color:palette.trial};
+  const target={name:'candidate location · '+data.epoch+' UTC',point:current,color:palette.trial};
   const pointers=new Map();
   let yaw,tilt,center,span,panX,panY,W,H,scale,scheduled=false,hit=[],selected=null,gesture=null;
   let track=[],lastScale=0,lastTap=null;
@@ -95,7 +95,7 @@ function mount(root,catalog) {
       } else {
         ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
       }
-      if (label) {ctx.font='11px system-ui';ctx.fillStyle=body.color;ctx.fillText(body===target?'current location':body.name,x+7,y-6);}
+      if (label) {ctx.font='11px system-ui';ctx.fillStyle=body.color;ctx.fillText(body===target?'candidate location':body.name,x+7,y-6);}
       hit.push({x,y,body});
     }
     const layers=Object.fromEntries(inputs.map(el=>[el.dataset.layer,el.checked]));
