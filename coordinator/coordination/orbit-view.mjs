@@ -1,4 +1,4 @@
-import {atMean, catalogOrbit, ellipsePoint, trialOrbit, trialTrack} from './orbit-model.mjs?v=1';
+import {atMean, catalogOrbit, ellipsePoint, trialOrbit, trialTrack} from './orbit-model.mjs?v=3';
 
 const TAU = 2*Math.PI;
 const palette = {trial:'#ffbd77', planets:'#a8c7f1', largest:'#7bd7c4', detached:'#b8a0ec', sun:'#fff0b0'};
@@ -15,19 +15,23 @@ function loadCatalog() {
 function mount(root,catalog) {
   const data=JSON.parse(root.querySelector('.orbit-data').textContent);
   const canvas=root.querySelector('canvas'), ctx=canvas.getContext('2d');
-  const view=root.querySelector('[data-view]'), output=root.querySelector('output');
+  const output=root.querySelector('output');
+  const resetButton=root.querySelector('[data-reset]');
   const inputs=[...root.querySelectorAll('[data-layer]')];
   const trial=trialOrbit(data.position,data.velocity);
   const relative=p => p.map((value,i) => value-data.sun[i]);
   const current=relative(data.position);
+  const fullSpan=trial?.period ? 2.4*trial.a : Math.max(200,2.5*Math.hypot(...current));
+  const orbitCenter=trial?.period ? relative(trial.p.map(x => -trial.a*trial.e*x)) : [0,0,0];
   const planets=catalog.planets.map(body => marker(body,true));
   const kbos=catalog.kbos.map(body => marker(body,false));
   const detached=kbos.filter(body => body.detached);
   const sun={name:'Sun',point:[0,0,0],color:palette.sun};
-  const target={name:'Trial position · '+data.epoch+' UTC',point:current,color:palette.trial};
+  const target={name:'candidate location · '+data.epoch+' UTC',point:current,color:palette.trial};
   const pointers=new Map();
   let yaw,tilt,center,span,panX,panY,W,H,scale,scheduled=false,hit=[],selected=null,gesture=null;
-  let track=[],lastScale=0;
+  let track=[],lastScale=0,lastTap=null;
+  let ready=false;
   function marker(body,planet) {
     const o=catalogOrbit(body,data.jd);
     const center=o.p.map(value => -o.a*o.e*value);
@@ -35,16 +39,8 @@ function mount(root,catalog) {
     return {...body,orbit:o,outline,point:atMean(o,o.m),planet,color:planet?palette.planets:body.rank?palette.largest:palette.detached};
   }
   function reset() {
-    const mode=view.value;
-    yaw=-.32; tilt=.32; panX=panY=0; center=[0,0,0];
-    if (mode==='trial' && trial?.period) {
-      center=relative(trial.p.map(x => -trial.a*trial.e*x));
-      span=2.4*trial.a;
-    } else if (mode==='path') {
-      center=current; span=18;
-    } else if (mode==='belt') span=150;
-    else if (mode==='planets') span=76;
-    else span=Math.max(200,2.5*Math.hypot(...current));
+    yaw=-.32; tilt=.32; panX=panY=0; center=orbitCenter;
+    span=fullSpan;
     selected=null; output.textContent=''; request();
   }
   function request() {
@@ -52,8 +48,13 @@ function mount(root,catalog) {
   }
   function draw() {
     scheduled=false;
+    resetButton.hidden=Math.abs(span/fullSpan-1)<1e-9;
     W=canvas.clientWidth; H=canvas.clientHeight;
     if (!W || !H) return;
+    if (!ready) {
+      ready=true;root.setAttribute('aria-busy','false');
+      root.querySelectorAll('.orbit-tools button').forEach(button=>{button.disabled=false;});
+    }
     const dpr=Math.min(2,window.devicePixelRatio||1);
     if (canvas.width!==Math.round(W*dpr) || canvas.height!==Math.round(H*dpr)) {
       canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
@@ -99,7 +100,7 @@ function mount(root,catalog) {
       } else {
         ctx.beginPath();ctx.arc(x,y,r,0,TAU);ctx.fill();
       }
-      if (label) {ctx.font='11px system-ui';ctx.fillStyle=body.color;ctx.fillText(body===target?'Trial position':body.name,x+7,y-6);}
+      if (label) {ctx.font='11px system-ui';ctx.fillStyle=body.color;ctx.fillText(body===target?'candidate location':body.name,x+7,y-6);}
       hit.push({x,y,body});
     }
     const layers=Object.fromEntries(inputs.map(el=>[el.dataset.layer,el.checked]));
@@ -110,36 +111,36 @@ function mount(root,catalog) {
     const extent=Math.max(span*3,60);
     line([[-extent,0,0],[extent,0,0]],'#243a48',.65);
     line([[0,-extent,0],[0,extent,0]],'#243a48',.65);
-    if (layers.detached) outlines(detached,'#b8a0ec60',.55);
-    if (layers.planets) outlines(planets,'#6387ae88',.8);
-    if (selected?.orbit && !selected.planet) outlines([selected],selected.color,.85);
+    if (layers.detached) outlines(detached,'#b8a0ec60',.4);
+    if (layers.planets) outlines(planets,'#6387ae88',.55);
+    if (selected?.orbit && !selected.planet) outlines([selected],selected.color,.65);
     if (trial) {
       if (lastScale!==scale) {track=trialTrack(trial,scale);lastScale=scale;}
-      line(track,palette.trial,.7,Boolean(trial.period),true);
+      line(track,palette.trial,.45,Boolean(trial.period),true);
       ctx.fillStyle=palette.trial;ctx.beginPath();
       let lastX=Infinity,lastY=Infinity;
       for (const v of track) {
         const [x,y]=project(relative(v));
         if (x<0 || y<0 || x>W || y>H || (x-lastX)**2+(y-lastY)**2<1.6) continue;
-        ctx.moveTo(x+1.25,y);ctx.arc(x,y,1.25,0,TAU);lastX=x;lastY=y;
+        ctx.moveTo(x+.8,y);ctx.arc(x,y,.8,0,TAU);lastX=x;lastY=y;
       }
       ctx.fill();
     }
     for (const body of kbos) {
       if ((layers.largest && body.rank) || (layers.detached && body.detached)) {
         body.color=layers.largest && body.rank?palette.largest:palette.detached;
-        mark(body,body.rank && layers.largest?1.2:.9);
+        mark(body,body.rank && layers.largest?1:.75);
       }
     }
     if (layers.planets) {
       const labels=[];
       for (const body of [...planets].reverse()) {
         const [x,y]=project(body.point), show=span<170 && labels.every(p=>Math.hypot(x-p[0],y-p[1])>34);
-        mark(body,2.7,show);
+        mark(body,2.15,show);
         if(show) labels.push([x,y]);
       }
     }
-    mark(sun,3.7);mark(target,4.4,true);
+    mark(sun,3);mark(target,3.2,true);
     if(selected && (!selected.orbit || selected.planet)) {
       const [x,y]=project(selected.point);ctx.strokeStyle='#fff';ctx.lineWidth=1;
       ctx.beginPath();ctx.arc(x,y,6,0,TAU);ctx.stroke();
@@ -166,8 +167,9 @@ function mount(root,catalog) {
   }
   const location=e=>{const b=canvas.getBoundingClientRect();return [e.clientX-b.left,e.clientY-b.top];};
   canvas.addEventListener('pointerdown',e=>{
-    canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);
-    const p=location(e);pointers.set(e.pointerId,p);gesture={first:p,moved:pointers.size>1};
+    e.preventDefault();canvas.focus({preventScroll:true});canvas.setPointerCapture(e.pointerId);
+    const p=location(e);pointers.set(e.pointerId,p);gesture={first:p,moved:pointers.size>1,pan:e.shiftKey || e.button===2};
+    canvas.classList.toggle('panning',gesture.pan);
   });
   canvas.addEventListener('pointermove',e=>{
     if (!pointers.has(e.pointerId)) return;
@@ -177,15 +179,39 @@ function mount(root,catalog) {
       const before=Math.hypot(old[0]-other[0],old[1]-other[1]),after=Math.hypot(p[0]-other[0],p[1]-other[1]);
       if(before>1 && after>1) zoom(after/before,(old[0]+other[0])/2,(old[1]+other[1])/2);
       panX+=dx/2;panY+=dy/2;
-    } else if(e.shiftKey || e.buttons===2) {panX+=dx;panY+=dy;}
+    } else if(gesture.pan || e.shiftKey || e.buttons===2) {
+      gesture.pan=true;canvas.classList.add('panning');panX+=dx;panY+=dy;
+    }
     else {yaw+=dx*.009;tilt=clamp(tilt+dy*.009,-Math.PI/2,Math.PI/2);}
     gesture.moved ||= Math.hypot(p[0]-gesture.first[0],p[1]-gesture.first[1])>3;
     pointers.set(e.pointerId,p);request();
   });
-  canvas.addEventListener('pointerup',e=>{if(gesture && !gesture.moved)pick(...location(e));pointers.delete(e.pointerId);});
-  canvas.addEventListener('pointercancel',e=>pointers.delete(e.pointerId));
+  function release(e) {
+    pointers.delete(e.pointerId);
+    if (!pointers.size) canvas.classList.remove('panning');
+  }
+  canvas.addEventListener('pointerup',e=>{
+    const p=location(e);
+    if (gesture && !gesture.moved && !gesture.pan) {
+      const twice=lastTap && lastTap.type===e.pointerType && e.timeStamp-lastTap.time<450 &&
+        Math.hypot(p[0]-lastTap.p[0],p[1]-lastTap.p[1])<16;
+      if (twice) {
+        panX+=W/2-p[0];panY+=H/2-p[1];lastTap=null;request();
+      } else {
+        pick(...p);lastTap={p,time:e.timeStamp,type:e.pointerType};
+      }
+    } else lastTap=null;
+    release(e);
+  });
+  canvas.addEventListener('pointercancel',e=>{lastTap=null;release(e);});
+  canvas.addEventListener('lostpointercapture',release);
   canvas.addEventListener('contextmenu',e=>e.preventDefault());
-  canvas.addEventListener('wheel',e=>{e.preventDefault();zoom(Math.exp(clamp(-e.deltaY*.002,-.9,.9)),...location(e));},{passive:false});
+  canvas.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const unit=e.deltaMode===1?16:e.deltaMode===2?H:1;
+    if(e.shiftKey) {panX-=e.deltaX*unit;panY-=e.deltaY*unit;request();}
+    else zoom(Math.exp(clamp(-e.deltaY*unit*.002,-.9,.9)),...location(e));
+  },{passive:false});
   canvas.addEventListener('keydown',e=>{
     if(e.key==='+'||e.key==='=')zoom(1.4);else if(e.key==='-')zoom(1/1.4);
     else if(e.key==='ArrowLeft')yaw-=.12;else if(e.key==='ArrowRight')yaw+=.12;
@@ -193,10 +219,12 @@ function mount(root,catalog) {
     else if(e.key==='ArrowDown')tilt=clamp(tilt-.12,-Math.PI/2,Math.PI/2);
     else if(e.key==='Home')reset();else return;e.preventDefault();request();
   });
-  root.querySelector('[data-reset]').onclick=reset;
+  root.querySelector('[data-center]').onclick=()=>{
+    center=selected?.point ?? orbitCenter;panX=panY=0;request();
+  };
+  resetButton.onclick=reset;
   root.querySelector('[data-zoom="in"]').onclick=()=>zoom(1.6);
   root.querySelector('[data-zoom="out"]').onclick=()=>zoom(1/1.6);
-  view.onchange=reset;
   inputs.forEach(el=>el.onchange=()=>{selected=null;output.textContent='';request();});
   new ResizeObserver(request).observe(canvas);
   reset();
@@ -210,5 +238,5 @@ const observer=new IntersectionObserver(entries=>{
     observer.unobserve(e.target);
     loadCatalog().then(c=>mount(e.target,c)).catch(()=>{e.target.querySelector('output').textContent='Orbit diagram unavailable.';});
   }
-},{rootMargin:'180px'});
+},{rootMargin:'500px'});
 document.querySelectorAll('.orbit-view').forEach(root=>observer.observe(root));

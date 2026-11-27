@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import astronomy from '../coordinator/coordination/astronomy-engine-2.1.19.min.js';
-import {predict, findingChart, sexagesimal} from '../coordinator/coordination/finder-model.mjs';
+import {predict, findingChart, sexagesimal, skyTrack, tangentPoint} from '../coordinator/coordination/finder-model.mjs';
 
 // Archived trial N52304246/4. Reference directions use the search propagator
 // and Astropy's Earth barycentric ephemeris, independently of the browser code.
@@ -31,4 +31,29 @@ test('finder boxes use the tangent-plane plate scale and the central pixel', () 
 test('coordinate rounding carries across zero hours and minutes', () => {
   assert.equal(sexagesimal(359.99999,true),'00h 00m 00s');
   assert.equal(sexagesimal(-10.99999,false),'−11° 00′ 00″');
+});
+
+test('one year of past sky positions ends at the crosshair in the FITS projection', () => {
+  const date = new Date('2027-05-11T08:48:17Z');
+  const points = skyTrack(predict(data,date,astronomy),date,15);
+  // Astropy WCS reference points, converted from FITS pixel Y to screen Y.
+  assert.equal(points.length,123);
+  for (const [i,expected] of [[0,[51.3845013,55.7283605]],[61,[117.8096399,83.3101667]],[122,[50,50]]]) {
+    assert.ok(Math.hypot(...points[i].map((v,j)=>v-expected[j])) < .002);
+  }
+});
+test('the leap-day trail starts on the previous February 28 at the same UTC time', () => {
+  const dates=[], center={ra:5,dec:20};
+  const at = t => { dates.push(t.getTime()); return center; };
+  const end = new Date('2024-02-29T17:30:00Z');
+  skyTrack({...center,at},end,15);
+  assert.equal(dates[0],Date.parse('2023-02-28T17:30:00Z'));
+  assert.equal(dates.at(-1),end.getTime());
+  assert.ok(dates.slice(1).every((t,i)=>t>dates[i]));
+});
+test('finder projection is continuous across zero RA and clips the rear hemisphere', () => {
+  const center={ra:359.99,dec:72};
+  const east=tangentPoint({ra:.01,dec:72},center,15);
+  assert.ok(east[0]<50 && east[0]>45);
+  assert.equal(tangentPoint({ra:179.99,dec:-72},center,15),null);
 });

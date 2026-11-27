@@ -116,9 +116,9 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=37">
-<script type="module" src="orbit-view.mjs?v=2"></script>
-<script type="module" src="sky-finder.mjs?v=2"></script></head>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=43">
+<script type="module" src="orbit-view.mjs?v=4"></script>
+<script type="module" src="sky-finder.mjs?v=5"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
@@ -138,7 +138,7 @@ foreach ($themes as $theme):
 <a class="figure-<?= $theme ?>" href="<?= $src ?>"><img width="<?= (int)$figureWidth ?>" height="<?= (int)$figureHeight ?>" loading="lazy" src="<?= $src ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a>
 <?php endforeach; ?></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
-<?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
+<?php if ($note): ?><p>Do these images persuade you that TESS detected a viable Planet Nine candidate?</p><?php endif; ?>
 <form method="post" class="candidate-votes" action="?field=<?= $code ?>">
 <input type="hidden" name="candidate" value="<?= $id ?>">
 <?php foreach (['yes' => 'Compelling', 'maybe' => 'Maybe', 'no' => 'Not compelling'] as $key => $label): ?>
@@ -147,14 +147,15 @@ foreach ($themes as $theme):
 <div class="path-orbit-panel">
 <?php $orbit = $pathEstimates[$code][$id] ?? null; if ($orbit):
     $radius = $orbit['radius'] ?? null;
+    $tessMagnitude = $orbit['T'] ?? null;
+    $visualMagnitude = is_numeric($tessMagnitude) ? (float)$tessMagnitude + 0.5 : null;
     $mass = is_numeric($radius) && $radius >= 1 && $radius <= 6.61 ? 3 * $radius : null;
     $day = $daily[$code] ?? [];
     $sky = $day['paths'][$id] ?? null;
 ?>
 <?php if ($sky): ?>
 <div class="sky-finder">
-<h4>Observation finder</h4>
-<form class="finder-form">
+<form class="finder-form" aria-label="Sky position at observation time">
 <label>Observation time (UTC)<input type="datetime-local" name="utc" value="<?= $epoch ?>T00:00" step="1" required></label>
 <label>Search box<select name="width"><option value="1">1′ square</option><option value="2">2′ square</option><option value="5" selected>5′ square</option><option value="10">10′ square</option><option value="20">20′ square</option></select></label>
 <button type="submit">Find on sky</button>
@@ -163,25 +164,24 @@ foreach ($themes as $theme):
 <p class="finder-status" role="status"></p>
 <figure class="finder-result" aria-busy="true" hidden>
 <div class="finder-frame"><img alt="Digitized Sky Survey image centered on the trial prediction">
+<svg class="finder-track" viewBox="0 0 100 100" aria-hidden="true" focusable="false"></svg>
 <span class="finder-box" aria-hidden="true"></span><span class="finder-source" aria-hidden="true"></span><span class="finder-cross" aria-hidden="true"></span>
-<span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span></div>
-<div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="true">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><span class="finder-scale"></span></div>
-<figcaption>Archival Digitized Sky Survey image. The yellow crosshair marks the trial position. The simulated point illustrates its location at the requested time. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
+<span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span>
+<span class="finder-magnitude" title="Estimated from the TESS photometry using V − T = 0.5"><?= $visualMagnitude === null ? 'V unavailable' : 'V ≈ ' . estimate($visualMagnitude, 1) ?></span></div>
+<div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="true">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><button type="button" class="finder-path" aria-pressed="true">Sky path</button><span class="finder-scale"></span></div>
+<figcaption>Archival Digitized Sky Survey image. The amber trail shows the year leading up to the observation. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
 </figure></div>
-<div class="orbit-view">
-<div class="orbit-title"><h4>Solar system</h4><label>View <select data-view>
-<option value="trial">Full trial orbit</option><option value="belt">Kuiper belt</option><option value="planets">Planets</option><option value="path">At the trial position</option>
-</select></label></div>
+<div class="orbit-view" aria-busy="true">
 <div class="orbit-plate"><div class="orbit-frame"><canvas tabindex="0" aria-label="Solar system and trial path <?= $id ?>. Arrow keys rotate, plus and minus zoom.">Interactive orbit diagram</canvas>
-<span class="trial-key"><i aria-hidden="true"></i> Trial orbit · 5-year steps</span>
-<div class="orbit-tools"><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="out" aria-label="Zoom out">−</button><button type="button" data-reset>Reset</button></div>
+<span class="trial-key"><i aria-hidden="true"></i> Trial orbit · 10-year steps</span>
+<div class="orbit-tools"><button type="button" data-zoom="in" disabled aria-label="Zoom in">+</button><button type="button" data-zoom="out" disabled aria-label="Zoom out">−</button><button type="button" data-center disabled title="Center the selected object or the orbit at this zoom">Center</button><button type="button" data-reset hidden disabled title="Fit the full orbit">Reset</button></div>
 <output class="orbit-readout" aria-live="polite"></output></div>
 <div class="orbit-layers">
 <label><input type="checkbox" data-layer="planets" checked> Planets</label>
 <label><input type="checkbox" data-layer="largest" checked> 100 largest KBOs</label>
 <label><input type="checkbox" data-layer="detached" checked> Detached KBOs</label>
 </div></div>
-<p class="orbit-guide">Drag to rotate, scroll or pinch to zoom. Shift-drag or use two fingers to pan. Select an object to identify it.</p>
+<p class="orbit-guide">Drag to rotate, scroll or pinch to zoom. Shift-drag or use two fingers to pan. Double-click or double-tap a spot to center it at this zoom. Select an object to identify it.</p>
 <details class="orbit-sources"><summary>Comparison objects and sources</summary>
 <p>The size ranking excludes centaurs and includes estimated diameters. The detached sample contains 204 objects classified in December 2023, including uncertain classifications. Eleven also appear in the size ranking.
 <a href="https://web.gps.caltech.edu/~mbrown/dps.html">Brown size catalog</a> · <a href="https://github.com/katvolk/TNO-classifications">Volk &amp; Van Laerhoven classifications</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>) · <a href="https://ssd.jpl.nasa.gov/sb/orbits.html">JPL small-body elements</a> · <a href="https://ssd.jpl.nasa.gov/planets/approx_pos.html">JPL planet positions</a></p></details>

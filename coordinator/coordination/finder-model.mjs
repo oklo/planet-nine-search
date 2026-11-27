@@ -1,12 +1,10 @@
-import {trialOrbit, trialPositionAt} from './orbit-model.mjs?v=2';
+import {trialOrbit, trialPositionAt} from './orbit-model.mjs?v=3';
 
 const radians = Math.PI / 180;
 const obliquity = 23.439291111 * radians;
 
-export function predict(data, date, astronomy) {
+function direction(orbit, epoch, date, astronomy) {
   const time = astronomy.MakeTime(date);
-  const epoch = astronomy.MakeTime(new Date(data.epoch + 'T00:00:00Z'));
-  const orbit = trialOrbit(data.position, data.velocity);
   const [x, y, z] = trialPositionAt(orbit, time.tt - epoch.tt);
   const earth = astronomy.BaryState('Earth', time);
   const dx = x - earth.x;
@@ -14,7 +12,39 @@ export function predict(data, date, astronomy) {
   const dz = y * Math.sin(obliquity) + z * Math.cos(obliquity) - earth.z;
   const ra = (Math.atan2(dy, dx) / radians + 360) % 360;
   const dec = Math.atan2(dz, Math.hypot(dx, dy)) / radians;
-  return {ra, dec, constellation: astronomy.Constellation(ra / 15, dec).name};
+  return {ra, dec};
+}
+
+export function predict(data, date, astronomy) {
+  const epoch = astronomy.MakeTime(new Date(data.epoch + 'T00:00:00Z'));
+  const orbit = trialOrbit(data.position, data.velocity);
+  const at = date => direction(orbit, epoch, date, astronomy);
+  const {ra, dec} = at(date);
+  return {ra, dec, constellation: astronomy.Constellation(ra / 15, dec).name, at};
+}
+
+// Project to percent coordinates in the survey's north-up, east-left TAN image.
+export function tangentPoint(position, center, fieldMinutes) {
+  const delta = (position.ra - center.ra) * radians;
+  const dec = position.dec*radians, dec0 = center.dec*radians;
+  const along = Math.sin(dec0)*Math.sin(dec) + Math.cos(dec0)*Math.cos(dec)*Math.cos(delta);
+  if (along <= 0) return null;
+  const scale = 50 / (Math.tan(fieldMinutes*radians/120) * along);
+  return [50 - scale*Math.cos(dec)*Math.sin(delta),
+          50 - scale*(Math.cos(dec0)*Math.sin(dec) - Math.sin(dec0)*Math.cos(dec)*Math.cos(delta))];
+}
+
+export function skyTrack(prediction, date, fieldMinutes) {
+  const start = new Date(date);
+  start.setUTCFullYear(date.getUTCFullYear() - 1);
+  // February 29 rolls to March 1 in a non-leap year. Use February's last day.
+  if (start.getUTCMonth() !== date.getUTCMonth()) start.setUTCDate(0);
+  const duration = date.getTime() - start.getTime();
+  const steps = Math.ceil(duration / (3 * 86400000));
+  return Array.from({length:steps+1}, (_,i) => {
+    const sample = new Date(start.getTime() + duration*i/steps);
+    return tangentPoint(prediction.at(sample),prediction,fieldMinutes);
+  });
 }
 
 export function sexagesimal(degrees, hours) {

@@ -1,4 +1,20 @@
-import {predict, findingChart, sexagesimal} from './finder-model.mjs?v=1';
+import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=4';
+
+function drawTrail(layer, points) {
+  const paths = document.createDocumentFragment();
+  for (let i=1; i<points.length; i++) {
+    const from=points[i-1], to=points[i];
+    if (!from || !to) continue;
+    const segment=document.createElementNS('http://www.w3.org/2000/svg','path');
+    segment.setAttribute('d','M'+from.map(v=>v.toFixed(4)).join(' ')+' L'+to.map(v=>v.toFixed(4)).join(' '));
+    segment.setAttribute('vector-effect','non-scaling-stroke');
+    // Brightness follows time even when annual parallax makes the path turn back.
+    const progress=(i-.5)/(points.length-1);
+    segment.setAttribute('stroke-opacity',(0.82*progress**1.5).toFixed(4));
+    paths.append(segment);
+  }
+  layer.replaceChildren(paths);
+}
 
 function surveyImage(url, signal) {
   return new Promise((resolve, reject) => {
@@ -42,16 +58,15 @@ function mount(root) {
   const point = result.querySelector('.finder-source');
   const data = JSON.parse(root.closest('.path-orbit-panel').querySelector('.orbit-data').textContent);
   let pending;
-  function showMarker(show) {
-    marker.setAttribute('aria-pressed', String(show));
-    cross.hidden = !show;
+  const pathButton = result.querySelector('.finder-path');
+  const trackLayer = frame.querySelector('.finder-track');
+  for (const [button,overlay] of [[marker,cross],[planet,point],[pathButton,trackLayer]]) {
+    button.addEventListener('click', () => {
+      const show = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(show));
+      overlay.toggleAttribute('hidden', !show);
+    });
   }
-  function showPlanet(show) {
-    planet.setAttribute('aria-pressed', String(show));
-    point.hidden = !show;
-  }
-  planet.addEventListener('click', () => showPlanet(point.hidden));
-  marker.addEventListener('click', () => showMarker(cross.hidden));
   form.addEventListener('submit', async event => {
     event.preventDefault();
     nearby.unobserve(root);
@@ -68,12 +83,22 @@ function mount(root) {
       if (!Number.isFinite(date.getTime())) throw new Error('Enter a valid UTC observation time.');
       await import('./astronomy-engine-2.1.19.min.js');
       if (signal.aborted) return;
-      const {ra, dec, constellation} = predict(data, date, window.Astronomy);
-      const epoch = date.toISOString().slice(0,19).replace('T',' ') + ' UTC';
-      coordinates.textContent = epoch + ' · RA ' + sexagesimal(ra,true) + ' · Dec ' +
-        sexagesimal(dec,false) + ' · ' + constellation + ' (' + ra.toFixed(5) + '°, ' + dec.toFixed(5) + '°)';
+      const prediction = predict(data, date, window.Astronomy);
+      const {ra, dec, constellation} = prediction;
+      const epoch = document.createElement('time');
+      epoch.dateTime = date.toISOString();
+      epoch.textContent = epoch.dateTime.slice(0,19).replace('T',' ') + ' UTC';
+      const position = document.createElement('span');
+      position.className = 'finder-position';
+      for (const [label, value, hours] of [['RA', ra, true], ['Dec', dec, false]]) {
+        const part = document.createElement('span');
+        part.textContent = label + ' ' + sexagesimal(value,hours) + ' (' + value.toFixed(5) + '°)';
+        position.append(part);
+      }
+      coordinates.replaceChildren(epoch, ' · ' + constellation, position);
       status.textContent = 'Loading survey image…';
       const chart = findingChart(ra, dec, width);
+      const track = skyTrack(prediction, date, chart.fieldMinutes);
       let image;
       for (const url of chart.urls) {
         try { image = await surveyImage(url, signal); break; }
@@ -82,6 +107,7 @@ function mount(root) {
       if (signal.aborted) return;
       if (!image) throw new Error('The survey image is unavailable. Use Find on sky to retry.');
       frame.querySelector('img').replaceWith(image);
+      drawTrail(trackLayer,track);
       frame.style.setProperty('--box-side',chart.boxPercent+'%');
       result.querySelector('.finder-scale').textContent = width+'′ search box · '+chart.fieldMinutes+'′ field';
       status.textContent = '';
