@@ -184,6 +184,11 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .orbit-frame canvas:focus-visible { outline: 2px solid #ffbd77; outline-offset: -3px; }
 .orbit-tools { display: flex; gap: .22rem; position: absolute; inset: .5rem .5rem auto auto; }
 .orbit-tools button { color: #e3eff7; border: 1px solid #49616f; border-radius: .25rem; background: #152832; min-width: 2rem; min-height: 2rem; font: var(--detail-type)/1.45 var(--sans); cursor: pointer; padding: .25rem .45rem; }
+.orbit-view[aria-busy=true] canvas { cursor: progress; }
+.orbit-tools button:disabled { opacity: .55; cursor: progress; }
+@media (max-width: 24rem) {
+  .orbit-frame:has([data-reset]:not([hidden])) .trial-key { top: 3rem; }
+}
 .orbit-tools button:hover { background: #294352; }
 .orbit-readout { position: absolute; bottom: 2rem; left: .55rem; max-width: calc(100% - 1.1rem); color: #edf7ff; background: #132630ed; padding: .2rem .4rem; font: .76rem/1.4 var(--sans); pointer-events: none; }
 .orbit-readout:empty { display: none; }

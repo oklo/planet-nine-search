@@ -116,8 +116,8 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=38">
-<script type="module" src="orbit-view.mjs?v=3"></script>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=39">
+<script type="module" src="orbit-view.mjs?v=4"></script>
 <script type="module" src="sky-finder.mjs?v=3"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
@@ -168,10 +168,10 @@ foreach ($themes as $theme):
 <div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="true">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><span class="finder-scale"></span></div>
 <figcaption>Archival Digitized Sky Survey image. The amber line traces the predicted sky position for 30 days on either side of the observation. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
 </figure></div>
-<div class="orbit-view">
+<div class="orbit-view" aria-busy="true">
 <div class="orbit-plate"><div class="orbit-frame"><canvas tabindex="0" aria-label="Solar system and trial path <?= $id ?>. Arrow keys rotate, plus and minus zoom.">Interactive orbit diagram</canvas>
 <span class="trial-key"><i aria-hidden="true"></i> Trial orbit · 10-year steps</span>
-<div class="orbit-tools"><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="out" aria-label="Zoom out">−</button><button type="button" data-center title="Center the selected object or the orbit at this zoom">Center</button><button type="button" data-reset hidden title="Fit the full orbit">Reset</button></div>
+<div class="orbit-tools"><button type="button" data-zoom="in" disabled aria-label="Zoom in">+</button><button type="button" data-zoom="out" disabled aria-label="Zoom out">−</button><button type="button" data-center disabled title="Center the selected object or the orbit at this zoom">Center</button><button type="button" data-reset hidden disabled title="Fit the full orbit">Reset</button></div>
 <output class="orbit-readout" aria-live="polite"></output></div>
 <div class="orbit-layers">
 <label><input type="checkbox" data-layer="planets" checked> Planets</label>

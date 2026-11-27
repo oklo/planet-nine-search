@@ -31,6 +31,7 @@ function mount(root,catalog) {
   const pointers=new Map();
   let yaw,tilt,center,span,panX,panY,W,H,scale,scheduled=false,hit=[],selected=null,gesture=null;
   let track=[],lastScale=0,lastTap=null;
+  let ready=false;
   function marker(body,planet) {
     const o=catalogOrbit(body,data.jd);
     const center=o.p.map(value => -o.a*o.e*value);
@@ -50,6 +51,10 @@ function mount(root,catalog) {
     resetButton.hidden=Math.abs(span/fullSpan-1)<1e-9;
     W=canvas.clientWidth; H=canvas.clientHeight;
     if (!W || !H) return;
+    if (!ready) {
+      ready=true;root.setAttribute('aria-busy','false');
+      root.querySelectorAll('.orbit-tools button').forEach(button=>{button.disabled=false;});
+    }
     const dpr=Math.min(2,window.devicePixelRatio||1);
     if (canvas.width!==Math.round(W*dpr) || canvas.height!==Math.round(H*dpr)) {
       canvas.width=Math.round(W*dpr); canvas.height=Math.round(H*dpr);
@@ -233,5 +238,5 @@ const observer=new IntersectionObserver(entries=>{
     observer.unobserve(e.target);
     loadCatalog().then(c=>mount(e.target,c)).catch(()=>{e.target.querySelector('output').textContent='Orbit diagram unavailable.';});
   }
-},{rootMargin:'180px'});
+},{rootMargin:'500px'});
 document.querySelectorAll('.orbit-view').forEach(root=>observer.observe(root));
