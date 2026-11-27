@@ -24,7 +24,8 @@ new ResizeObserver(updateCandidateClose).observe($('metric-description'));
 window.addEventListener('resize', updateCandidateClose);
 for (const button of document.querySelectorAll('[data-metric]')) {
   button.addEventListener('click', () => {
-    $('metric-title').textContent = button.textContent;
+    $('metric-title').textContent = button.dataset.metric === 'population'
+      ? $('population-share').textContent : button.textContent;
     const description = $('metric-description');
     const candidates = button.dataset.metric === 'flags';
     metricInfo.classList.toggle('has-candidates', candidates);

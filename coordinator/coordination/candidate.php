@@ -19,6 +19,8 @@ $notes = json_decode(file_get_contents(__DIR__ . '/visual-review.json'), true) ?
 $featured = [];
 $public = [];
 $pathEstimates = [];
+$epoch = gmdate('Y-m-d');
+$daily = [];
 foreach ($snapshot['fields'] as $field) {
     $name = $field['code'];
     if (!isset($active[$name])) continue;
@@ -28,6 +30,7 @@ foreach ($snapshot['fields'] as $field) {
     if (($record['task_id'] ?? null) !== ($field['task_id'] ?? null)
         || ($record['reviewed_paths'] ?? []) !== $ids) continue;
     $pathEstimates[$name] = $record['rows'] ?? [];
+    $daily[$name] = $record['ephemeris'][$epoch] ?? [];
     $selected = array_values(array_intersect($ids, $record['public_paths'] ?? []));
     $review = $notes[$name] ?? null;
     if ($review && $review['task_id'] === $record['task_id']) {
@@ -82,7 +85,7 @@ if ($ids) {
         }
         $id = filter_var($_POST['candidate'] ?? null, FILTER_VALIDATE_INT);
         $choice = $_POST['choice'] ?? '';
-        if (!in_array($id, $ids, true) || !in_array($choice, ['yes','no'], true)) {
+        if (!in_array($id, $ids, true) || !in_array($choice, ['yes','maybe','no'], true)) {
             http_response_code(400);
             exit;
         }
@@ -100,31 +103,70 @@ function estimate($value, int $digits, string $unit = ''): string {
     if ((!is_int($value) && !is_float($value)) || !is_finite($value)) return '—';
     return number_format($value, $digits, '.', '') . $unit;
 }
+function sexagesimal(float $degrees, bool $hours): string {
+    $seconds = (int)round(abs($degrees) * 3600 / ($hours ? 15 : 1));
+    if ($hours) $seconds %= 86400;
+    return ($hours ? '' : ($degrees < 0 ? '−' : '+'))
+        . sprintf($hours ? '%02dh %02dm %02ds' : '%02d° %02d′ %02d″',
+            intdiv($seconds, 3600), intdiv($seconds % 3600, 60), $seconds % 60);
+}
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=32"></head>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=33">
+<script type="module" src="orbit-view.mjs?v=1"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
 <?php foreach ($ids as $id): $id = (int)$id; $note = $featured[$code][$id] ?? null; ?>
-<section id="candidate-<?= $id ?>">
+<section id="candidate-<?= $id ?>" class="path-evidence">
 <?php if ($note): ?>
 <h3>Path <?= $id ?> · <?= htmlspecialchars($note['title']) ?></h3>
-<p><?= htmlspecialchars($note['text']) ?></p>
 <?php else: ?><h3><?= in_array($id, $public[$code] ?? [], true) ? 'Candidate path' : 'Diagnostic path' ?> <?= $id ?></h3><?php endif; ?>
+<div class="path-columns"><div class="path-assets">
+<?php if ($note): ?><p><?= htmlspecialchars($note['text']) ?></p><?php endif; ?>
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
+<?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
+<form method="post" class="candidate-votes" action="?field=<?= $code ?>">
+<input type="hidden" name="candidate" value="<?= $id ?>">
+<?php foreach (['yes' => 'Compelling', 'maybe' => 'Maybe', 'no' => 'Not compelling'] as $key => $label): ?>
+<button name="choice" value="<?= $key ?>"><?= $label ?> <span><?= $votes[$id][$key] ?? 0 ?></span></button>
+<?php endforeach; ?></form></div>
+<div class="path-orbit-panel">
 <?php $orbit = $pathEstimates[$code][$id] ?? null; if ($orbit):
     $radius = $orbit['radius'] ?? null;
     $mass = is_numeric($radius) && $radius >= 1 && $radius <= 6.61 ? 3 * $radius : null;
+    $day = $daily[$code] ?? [];
+    $sky = $day['paths'][$id] ?? null;
 ?>
+<?php if ($sky): ?>
+<div class="orbit-view">
+<div class="orbit-title"><h4>Solar system</h4><label>View <select data-view>
+<option value="trial">Full trial orbit</option><option value="belt">Kuiper belt</option><option value="planets">Planets</option><option value="path">At the trial position</option>
+</select></label></div>
+<div class="orbit-frame"><canvas tabindex="0" aria-label="Solar system and trial path <?= $id ?>. Arrow keys rotate, plus and minus zoom.">Interactive orbit diagram</canvas>
+<div class="orbit-tools"><button type="button" data-zoom="in" aria-label="Zoom in">+</button><button type="button" data-zoom="out" aria-label="Zoom out">−</button><button type="button" data-reset>Reset</button></div>
+<output class="orbit-readout" aria-live="polite"></output></div>
+<div class="orbit-layers">
+<label><input type="checkbox" data-layer="planets" checked> Planets</label>
+<label><input type="checkbox" data-layer="largest" checked> 100 largest KBOs</label>
+<label><input type="checkbox" data-layer="detached" checked> Detached KBOs</label>
+</div>
+<p class="orbit-guide">Dots mark five-year steps along the trial path. Drag to rotate, scroll or pinch to zoom. Shift-drag or use two fingers to pan. Select an object to identify it.</p>
+<details class="orbit-sources"><summary>Comparison objects and sources</summary>
+<p>The size ranking excludes centaurs and includes estimated diameters. The detached sample contains 204 objects classified in December 2023, including uncertain classifications. Eleven also appear in the size ranking.
+<a href="https://web.gps.caltech.edu/~mbrown/dps.html">Brown size catalog</a> · <a href="https://github.com/katvolk/TNO-classifications">Volk &amp; Van Laerhoven classifications</a> (<a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>) · <a href="https://ssd.jpl.nasa.gov/sb/orbits.html">JPL small-body elements</a> · <a href="https://ssd.jpl.nasa.gov/planets/approx_pos.html">JPL planet positions</a></p></details>
+<script type="application/json" class="orbit-data"><?= json_encode(['jd' => $day['jd'], 'sun' => $day['sun'], 'position' => $sky['position'], 'velocity' => $sky['velocity'], 'epoch' => $epoch], JSON_HEX_TAG | JSON_THROW_ON_ERROR) ?></script>
+</div>
+<?php endif; ?>
 <div class="path-estimates">
   <div><h4>Trial orbit</h4><dl>
     <dt>Observer distance</dt><dd><?= estimate($orbit['distance'] ?? null, 0, ' au') ?></dd>
     <dt>Semimajor axis</dt><dd><?= estimate($orbit['a'] ?? null, 0, ' au') ?></dd>
+    <dt>Period</dt><dd><?= isset($orbit['period_years']) ? number_format($orbit['period_years']) . ' yr' : (($orbit['e'] ?? 0) >= 1 ? 'Open orbit' : '—') ?></dd>
     <dt>Eccentricity</dt><dd><?= estimate($orbit['e'] ?? null, 2) ?></dd>
     <dt>Inclination</dt><dd><?= estimate($orbit['i'] ?? null, 1, '°') ?></dd>
   </dl></div>
@@ -134,12 +176,15 @@ function estimate($value, int $digits, string $unit = ''): string {
     <dt>Mass</dt><dd><?= estimate($mass, 1, ' Earth masses') ?></dd>
   </dl></div>
 </div>
+<?php if ($sky): ?>
+<div class="path-sky"><h4>Predicted sky position</h4><dl>
+<dt>Epoch (UTC)</dt><dd><time datetime="<?= $epoch ?>T00:00:00Z"><?= $epoch ?> 00:00</time></dd>
+<dt>Right ascension</dt><dd><?= sexagesimal($sky['ra_deg'], true) ?></dd>
+<dt>Declination</dt><dd><?= sexagesimal($sky['dec_deg'], false) ?></dd>
+<dt>Constellation</dt><dd><?= htmlspecialchars($sky['constellation']) ?></dd></dl>
+<p class="estimate-note">Geocentric ICRS direction predicted by the trial orbit.</p></div>
+<?php else: ?><p>Sky position unavailable for <?= $epoch ?> UTC.</p><?php endif; ?>
 <p class="estimate-note">The trial orbit assumes zero radial velocity. The radius estimate assumes a geometric albedo of 0.4 and V − T = 0.5. The mass estimate uses 3 Earth masses per Earth radius over the range 1–6.61 Earth radii.</p>
 <?php else: ?><p>Orbit and physical estimates are unavailable for this path.</p><?php endif; ?>
-<?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
-<form method="post" class="candidate-votes" action="?field=<?= $code ?>">
-<input type="hidden" name="candidate" value="<?= $id ?>">
-<?php foreach (['yes' => 'Compelling', 'no' => 'Not compelling'] as $key => $label): ?>
-<button name="choice" value="<?= $key ?>"><?= $label ?> <span><?= $votes[$id][$key] ?? 0 ?></span></button>
-<?php endforeach; ?></form></section>
+</div></div></section>
 <?php endforeach; ?></main></body></html>
