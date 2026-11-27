@@ -139,12 +139,21 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 
 #worker-prompt { margin: .75rem 0; padding: .65rem 1rem; border-left: 2px solid var(--accent); background: var(--code-bg); overflow-wrap: anywhere; }
 
-.evidence-page .site-main { padding-top: .75rem; }
-.evidence-page .site-main { max-width: 80rem; }
+.evidence-page .site-main {
+  --detail-type: .8125rem;
+  --figure-measure: 36rem;
+  max-width: 80rem;
+  padding-top: .75rem;
+  font: .875rem/1.5 var(--sans);
+}
+.evidence-page .site-main > h2 { font: 600 1.125rem/1.3 var(--sans); }
+.path-evidence h4 { font: 600 .9375rem/1.35 var(--sans); }
 .path-evidence { margin: 1.5rem 0 3rem; border-top: 1px solid var(--rule); }
 .path-columns { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(1.25rem, 3vw, 3rem); }
 .path-assets, .path-orbit-panel { min-width: 0; }
-.path-evidence > h3, .path-assets > p { font-family: var(--sans); }
+.path-evidence > h3 { font: 600 .9375rem/1.35 var(--sans); }
+.path-assets > p { font: var(--detail-type)/1.45 var(--sans); margin: .55rem 0; max-width: var(--figure-measure); }
+.path-assets .candidate-votes button { font: var(--detail-type)/1.4 var(--sans); }
 .path-assets > p:first-child { margin-top: .3rem; }
 .evidence-page .site-main > p { margin: 0 0 .6rem; }
 .evidence-page section h3 { margin: .75rem 0 .4rem; }
@@ -157,26 +166,24 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 }
 .path-estimates { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: .5rem 1rem; }
 .path-estimates h4, .path-sky h4 { margin: .5rem 0; }
-.path-estimates dl, .path-sky dl { display: grid; grid-template-columns: 1fr auto; gap: .32rem .5rem; margin: 0; font: .85rem var(--sans); }
+.path-estimates dl, .path-sky dl { display: grid; grid-template-columns: 1fr auto; gap: .32rem .5rem; margin: 0; font: var(--detail-type)/1.45 var(--sans); }
 .path-estimates dt, .path-sky dt { color: var(--text-soft); }
 .path-estimates dd, .path-sky dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
 .path-sky { margin-top: 1rem; }
 .orbit-view { margin-bottom: 1rem; }
-.orbit-title, .orbit-layers { display: flex; align-items: center; justify-content: space-between; gap: .4rem .9rem; flex-wrap: wrap; }
-.orbit-title { margin: .2rem 0 .5rem; }
-.orbit-title h4 { margin: 0; font-size: 1.1rem; }
-.orbit-title label, .orbit-layers, .orbit-guide, .orbit-sources { font: .8rem/1.45 var(--sans); }
-.orbit-title select { font: inherit; padding: .27rem .4rem; margin-left: .25rem; border: 1px solid var(--rule); border-radius: .25rem; max-width: 100%; background: var(--map-frame); color: inherit; }
+.orbit-layers { display: flex; align-items: center; flex-wrap: wrap; }
+.orbit-layers, .orbit-guide, .orbit-sources { font: var(--detail-type)/1.45 var(--sans); }
 .orbit-plate { color-scheme: dark; overflow: hidden; border: 1px solid #334753; border-radius: .55rem; background: #10212c; }
 .orbit-frame { position: relative; background: radial-gradient(ellipse at 38% 42%, #152b38, #0b1922 77%); }
 .trial-key { display: inline-flex; align-items: center; gap: .45rem; position: absolute; left: .8rem; top: 1rem; color: #ffce93; font: .74rem var(--sans); pointer-events: none; }
 .trial-key i { width: 1.4rem; height: 1px; background: #ffbd77; position: relative; }
 .trial-key i::after { content: ''; position: absolute; width: 5px; height: 5px; border-radius: 50%; background: #ffbd77; top: -2px; left: 9px; }
-.orbit-frame canvas { display: block; width: 100%; height: clamp(18rem, 33vw, 29rem); cursor: grab; touch-action: none; }
+.orbit-frame canvas { display: block; width: 100%; height: clamp(18rem, 33vw, 29rem); cursor: grab; touch-action: none; -webkit-user-select: none; user-select: none; }
 .orbit-frame canvas:active { cursor: grabbing; }
+.orbit-frame canvas.panning { cursor: move; }
 .orbit-frame canvas:focus-visible { outline: 2px solid #ffbd77; outline-offset: -3px; }
 .orbit-tools { display: flex; gap: .22rem; position: absolute; inset: .5rem .5rem auto auto; }
-.orbit-tools button { color: #e3eff7; border: 1px solid #49616f; border-radius: .25rem; background: #152832; min-width: 2rem; min-height: 2rem; font: .85rem var(--sans); cursor: pointer; padding: .25rem .45rem; }
+.orbit-tools button { color: #e3eff7; border: 1px solid #49616f; border-radius: .25rem; background: #152832; min-width: 2rem; min-height: 2rem; font: var(--detail-type)/1.45 var(--sans); cursor: pointer; padding: .25rem .45rem; }
 .orbit-tools button:hover { background: #294352; }
 .orbit-readout { position: absolute; bottom: 2rem; left: .55rem; max-width: calc(100% - 1.1rem); color: #edf7ff; background: #132630ed; padding: .2rem .4rem; font: .76rem/1.4 var(--sans); pointer-events: none; }
 .orbit-readout:empty { display: none; }
@@ -194,11 +201,11 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 @media (max-width: 56rem) {
   .path-columns { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   .evidence-page .site-main { max-width: 44rem; }
-  .candidate-figure { max-width: 36rem; }
+  .path-assets, .path-orbit-panel { max-width: var(--figure-measure); }
   .orbit-frame canvas { height: clamp(18rem, 75vw, 28rem); }
   .path-assets .candidate-votes { margin-bottom: 0; }
 }
-.estimate-note { margin: .65rem 0 1rem; font: .82rem/1.4 var(--sans); }
+.estimate-note { margin: .65rem 0 1rem; font: var(--detail-type)/1.45 var(--sans); }
 
 #metric-info.has-candidates { width: min(29rem, calc(100% - 1rem)); }
 #metric-description { margin: 1rem 0; overflow-x: auto; }
@@ -210,18 +217,20 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 
 .site-header .site-description { text-transform: none; }
 
-.sky-finder { margin: .2rem 0 1rem; border-bottom: 1px solid var(--rule); padding-bottom: .75rem; }
-.sky-finder h4 { margin: 0 0 .5rem; }
+.sky-finder { max-width: var(--figure-measure); margin: .2rem 0 1rem; border-bottom: 1px solid var(--rule); padding-bottom: .75rem; }
 .finder-form, .finder-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .5rem .8rem; }
-.finder-form label { display: grid; min-width: 0; gap: .18rem; font: .78rem/1.4 var(--sans); }
-.finder-form input, .finder-form select, .finder-form button, .finder-marker, .finder-planet { box-sizing: border-box; max-width: 100%; min-height: 2.2rem; border: 1px solid var(--rule); border-radius: .3rem; padding: .25rem .5rem; background: var(--map-frame); color: inherit; font: .85rem/1.4 var(--sans); }
+.finder-form label { display: grid; min-width: 0; gap: .18rem; font: var(--detail-type)/1.45 var(--sans); }
+.finder-form input, .finder-form select, .finder-form button, .finder-marker, .finder-planet { box-sizing: border-box; max-width: 100%; min-height: 2.2rem; border: 1px solid var(--rule); border-radius: .3rem; padding: .25rem .5rem; background: var(--map-frame); color: inherit; font: var(--detail-type)/1.45 var(--sans); }
 .finder-form button, .finder-marker, .finder-planet { cursor: pointer; }
 .finder-form button { color: #f4f8fa; background: #193746; border-color: #193746; }
-.finder-coordinates, .finder-status, .finder-result figcaption, .finder-controls { font: .8rem/1.5 var(--sans); }
+.finder-coordinates, .finder-status, .finder-result figcaption, .finder-controls { font: var(--detail-type)/1.45 var(--sans); }
 .finder-coordinates, .finder-status { margin: .55rem 0; }
-.finder-coordinates { font-variant-numeric: tabular-nums; }
+.finder-coordinates { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.finder-position { display: flex; flex-wrap: wrap; column-gap: .85rem; }
+.finder-track { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.finder-track path { fill: none; stroke: #ffbd77; stroke-opacity: .68; stroke-width: .8px; stroke-linecap: round; stroke-linejoin: round; }
 .finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden] { display: none; }
-.finder-result { margin: .4rem 0 0; max-width: 36rem; }
+.finder-result { margin: .4rem 0 0; }
 .finder-frame { position: relative; background: #0c1820; overflow: hidden; border-radius: .4rem; aspect-ratio: 1; }
 .finder-result[aria-busy=true] .finder-frame > *,
 .finder-result[aria-busy=true] .finder-controls,

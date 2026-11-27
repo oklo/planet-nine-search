@@ -1,4 +1,4 @@
-import {predict, findingChart, sexagesimal} from './finder-model.mjs?v=1';
+import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=2';
 
 function surveyImage(url, signal) {
   return new Promise((resolve, reject) => {
@@ -68,12 +68,22 @@ function mount(root) {
       if (!Number.isFinite(date.getTime())) throw new Error('Enter a valid UTC observation time.');
       await import('./astronomy-engine-2.1.19.min.js');
       if (signal.aborted) return;
-      const {ra, dec, constellation} = predict(data, date, window.Astronomy);
-      const epoch = date.toISOString().slice(0,19).replace('T',' ') + ' UTC';
-      coordinates.textContent = epoch + ' · RA ' + sexagesimal(ra,true) + ' · Dec ' +
-        sexagesimal(dec,false) + ' · ' + constellation + ' (' + ra.toFixed(5) + '°, ' + dec.toFixed(5) + '°)';
+      const prediction = predict(data, date, window.Astronomy);
+      const {ra, dec, constellation} = prediction;
+      const epoch = document.createElement('time');
+      epoch.dateTime = date.toISOString();
+      epoch.textContent = epoch.dateTime.slice(0,19).replace('T',' ') + ' UTC';
+      const position = document.createElement('span');
+      position.className = 'finder-position';
+      for (const [label, value, hours] of [['RA', ra, true], ['Dec', dec, false]]) {
+        const part = document.createElement('span');
+        part.textContent = label + ' ' + sexagesimal(value,hours) + ' (' + value.toFixed(5) + '°)';
+        position.append(part);
+      }
+      coordinates.replaceChildren(epoch, ' · ' + constellation, position);
       status.textContent = 'Loading survey image…';
       const chart = findingChart(ra, dec, width);
+      const track = skyTrack(prediction, date, chart.fieldMinutes);
       let image;
       for (const url of chart.urls) {
         try { image = await surveyImage(url, signal); break; }
@@ -82,6 +92,7 @@ function mount(root) {
       if (signal.aborted) return;
       if (!image) throw new Error('The survey image is unavailable. Use Find on sky to retry.');
       frame.querySelector('img').replaceWith(image);
+      frame.querySelector('.finder-track path').setAttribute('d',track);
       frame.style.setProperty('--box-side',chart.boxPercent+'%');
       result.querySelector('.finder-scale').textContent = width+'′ search box · '+chart.fieldMinutes+'′ field';
       status.textContent = '';

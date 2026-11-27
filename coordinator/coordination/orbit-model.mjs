@@ -78,17 +78,19 @@ export function trialPositionAt(orbit, days) {
   return atMean(orbit, orbit.m + orbit.n * days);
 }
 
-// Each marker time is an integer multiple of five years from the displayed epoch.
+const markerYears = 10;
+
+// Marker times are integer multiples of ten years from the displayed epoch.
 // At extreme periods, suppress coincident subpixel markers using the maximum orbital speed.
 export function trialTrack(o, pixelsPerAU) {
   if (!o) return [];
   if (o.e>1) {
-    return Array.from({length: 201}, (_,j) => hyperbolicPoint(o,(j-100)*5));
+    return Array.from({length: 101}, (_,j) => hyperbolicPoint(o,(j-50)*markerYears));
   }
-  const count=Math.ceil(o.period/5);
-  const fastestStep=5*365.25*Math.sqrt(MU/o.a*(1+o.e)/(1-o.e));
+  const count=Math.ceil(o.period/markerYears);
+  const fastestStep=markerYears*365.25*Math.sqrt(MU/o.a*(1+o.e)/(1-o.e));
   const stride=Math.max(1,Math.floor(.65/(fastestStep*pixelsPerAU)));
   const points=[];
-  for (let j=0; j<count; j+=stride) points.push(atMean(o,o.m+j*5*365.25*o.n));
+  for (let j=0; j<count; j+=stride) points.push(atMean(o,o.m+j*markerYears*365.25*o.n));
   return points;
 }

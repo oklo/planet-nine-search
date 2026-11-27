@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import astronomy from '../coordinator/coordination/astronomy-engine-2.1.19.min.js';
-import {predict, findingChart, sexagesimal} from '../coordinator/coordination/finder-model.mjs';
+import {predict, findingChart, sexagesimal, skyTrack, tangentPoint} from '../coordinator/coordination/finder-model.mjs';
 
 // Archived trial N52304246/4. Reference directions use the search propagator
 // and Astropy's Earth barycentric ephemeris, independently of the browser code.
@@ -31,4 +31,22 @@ test('finder boxes use the tangent-plane plate scale and the central pixel', () 
 test('coordinate rounding carries across zero hours and minutes', () => {
   assert.equal(sexagesimal(359.99999,true),'00h 00m 00s');
   assert.equal(sexagesimal(-10.99999,false),'−11° 00′ 00″');
+});
+
+test('apparent sky track projects the two month endpoints to their Astropy WCS positions', () => {
+  const date = new Date('2027-05-11T08:48:17Z');
+  const prediction = predict(data,date,astronomy);
+  const points = [...skyTrack(prediction,date,15).matchAll(/[ML]([-0-9.]+) ([-0-9.]+)/g)]
+    .map(match => [Number(match[1]),Number(match[2])]);
+  assert.equal(points.length,61);
+  // FITS pixel coordinates increase upward; screen Y increases downward.
+  for (const [i,expected] of [[0,[58.3422429,100-52.3596765]],[30,[50,50]],[60,[50.2792406,100-43.7995263]]]) {
+    assert.ok(Math.hypot(...points[i].map((v,j)=>v-expected[j])) < .002);
+  }
+});
+test('finder projection is continuous across zero RA and clips the rear hemisphere', () => {
+  const center={ra:359.99,dec:72};
+  const east=tangentPoint({ra:.01,dec:72},center,15);
+  assert.ok(east[0]<50 && east[0]>45);
+  assert.equal(tangentPoint({ra:179.99,dec:-72},center,15),null);
 });
