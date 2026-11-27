@@ -251,7 +251,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .finder-controls { align-items: center; justify-content: space-between; margin: .4rem 0; }
 .finder-marker::before { content: '+'; display: inline-block; margin-right: .35rem; font-weight: 700; }
 .finder-marker[aria-pressed=true] { background: #122730; color: #ffe45b; border-color: #334753; }
-.finder-result figcaption { color: var(--text-soft); }
+.finder-result figcaption { color: var(--text-soft); text-align: left; }
 
 .finder-source { position: absolute; width: 7px; height: 7px; left: 50%; top: 50%; transform: translate(-50%, -50%); background: radial-gradient(circle, #fff 0%, #f9f7e6 12%, #e6e5d6aa 32%, #eee8d224 64%, transparent 75%); pointer-events: none; }
 .finder-controls { justify-content: flex-start; gap: .35rem .5rem; }
