@@ -148,7 +148,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 }
 .evidence-page .site-main > h2 { font: 600 1.125rem/1.3 var(--sans); }
 .path-evidence h4 { font: 600 .9375rem/1.35 var(--sans); }
-.path-evidence { margin: 1.5rem 0 3rem; border-top: 1px solid var(--rule); }
+.path-evidence { margin: 1.5rem 0 3rem; }
 .path-columns { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(1.25rem, 3vw, 3rem); }
 .path-assets, .path-orbit-panel { min-width: 0; }
 .path-evidence > h3 { font: 600 .9375rem/1.35 var(--sans); }
@@ -156,7 +156,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .path-assets .candidate-votes button { font: var(--detail-type)/1.4 var(--sans); }
 .path-assets > p:first-child { margin-top: .3rem; }
 .evidence-page .site-main > p { margin: 0 0 .6rem; }
-.evidence-page section h3 { margin: .75rem 0 .4rem; }
+.path-evidence > h3 { margin: .75rem 0 .55rem; padding-bottom: .45rem; border-bottom: 1px solid var(--rule); }
 .candidate-figure { margin: .4rem 0 .75rem; }
 .candidate-figure img { display: block; width: 100%; height: auto; }
 .candidate-figure .figure-dark { display: none; }

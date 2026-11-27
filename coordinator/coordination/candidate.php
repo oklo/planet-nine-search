@@ -116,7 +116,7 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=40">
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=41">
 <script type="module" src="orbit-view.mjs?v=4"></script>
 <script type="module" src="sky-finder.mjs?v=4"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
