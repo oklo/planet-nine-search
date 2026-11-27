@@ -18,6 +18,7 @@ $orbits = is_file("$dir/orbits.json") ? json_decode(file_get_contents("$dir/orbi
 $notes = json_decode(file_get_contents(__DIR__ . '/visual-review.json'), true) ?? [];
 $featured = [];
 $public = [];
+$pathEstimates = [];
 foreach ($snapshot['fields'] as $field) {
     $name = $field['code'];
     if (!isset($active[$name])) continue;
@@ -26,6 +27,7 @@ foreach ($snapshot['fields'] as $field) {
     sort($ids, SORT_NUMERIC);
     if (($record['task_id'] ?? null) !== ($field['task_id'] ?? null)
         || ($record['reviewed_paths'] ?? []) !== $ids) continue;
+    $pathEstimates[$name] = $record['rows'] ?? [];
     $selected = array_values(array_intersect($ids, $record['public_paths'] ?? []));
     $review = $notes[$name] ?? null;
     if ($review && $review['task_id'] === $record['task_id']) {
@@ -42,7 +44,7 @@ if (isset($_GET['list'])) {
     $rows = [];
     foreach (array_replace(array_intersect_key($notes, $featured), $public) as $name => $numbers) {
         foreach ($numbers as $n) {
-            $rows[] = ['field' => $name, 'number' => $n, 'orbit' => $orbits[$name]['rows'][$n] ?? null,
+            $rows[] = ['field' => $name, 'number' => $n, 'orbit' => $pathEstimates[$name][$n] ?? null,
                 'title' => $featured[$name][$n]['title'] ?? null];
         }
     }
@@ -94,11 +96,15 @@ if ($ids) {
     foreach ($read as $row) $votes[$row['candidate']][$row['choice']] = (int)$row['total'];
 }
 if (!$ids) http_response_code(410);
+function estimate($value, int $digits, string $unit = ''): string {
+    if ((!is_int($value) && !is_float($value)) || !is_finite($value)) return '—';
+    return number_format($value, $digits, '.', '') . $unit;
+}
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=30"></head>
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=32"></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
 <main class="site-main"><p><a href="./">← Search atlas</a></p><h2><?= $code ?></h2>
 <?php if (!$ids): ?><p>No candidates await follow-up in this field.</p><?php endif; ?>
@@ -111,6 +117,25 @@ if (!$ids) http_response_code(410);
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure"><a href="?field=<?= $code ?>&amp;image=<?= $id ?>"><img src="?field=<?= $code ?>&amp;image=<?= $id ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
+<?php $orbit = $pathEstimates[$code][$id] ?? null; if ($orbit):
+    $radius = $orbit['radius'] ?? null;
+    $mass = is_numeric($radius) && $radius >= 1 && $radius <= 6.61 ? 3 * $radius : null;
+?>
+<div class="path-estimates">
+  <div><h4>Trial orbit</h4><dl>
+    <dt>Observer distance</dt><dd><?= estimate($orbit['distance'] ?? null, 0, ' au') ?></dd>
+    <dt>Semimajor axis</dt><dd><?= estimate($orbit['a'] ?? null, 0, ' au') ?></dd>
+    <dt>Eccentricity</dt><dd><?= estimate($orbit['e'] ?? null, 2) ?></dd>
+    <dt>Inclination</dt><dd><?= estimate($orbit['i'] ?? null, 1, '°') ?></dd>
+  </dl></div>
+  <div><h4>Physical estimates</h4><dl>
+    <dt>TESS magnitude</dt><dd><?= estimate($orbit['T'] ?? null, 1) ?></dd>
+    <dt>Radius</dt><dd><?= estimate($radius, 1, ' Earth radii') ?></dd>
+    <dt>Mass</dt><dd><?= estimate($mass, 1, ' Earth masses') ?></dd>
+  </dl></div>
+</div>
+<p class="estimate-note">The trial orbit assumes zero radial velocity. The radius estimate assumes a geometric albedo of 0.4 and V − T = 0.5. The mass estimate uses 3 Earth masses per Earth radius over the range 1–6.61 Earth radii.</p>
+<?php else: ?><p>Orbit and physical estimates are unavailable for this path.</p><?php endif; ?>
 <?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
 <form method="post" class="candidate-votes" action="?field=<?= $code ?>">
 <input type="hidden" name="candidate" value="<?= $id ?>">
