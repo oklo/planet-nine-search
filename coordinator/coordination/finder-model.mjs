@@ -37,7 +37,10 @@ export function tangentPoint(position, center, fieldMinutes) {
 export function skyTrack(prediction, date, fieldMinutes) {
   const commands = [];
   let connected = false;
-  for (let day=-30; day<=30; day++) {
+  const halfSpanDays = 2.5 * 365.25;
+  const halfSteps = Math.ceil(halfSpanDays / 3);
+  for (let step=-halfSteps; step<=halfSteps; step++) {
+    const day = halfSpanDays * step / halfSteps;
     const position = prediction.at(new Date(date.getTime() + day*86400000));
     const point = tangentPoint(position, prediction, fieldMinutes);
     if (point) commands.push((connected ? 'L' : 'M') + point.map(value=>value.toFixed(4)).join(' '));

@@ -1,4 +1,4 @@
-import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=2';
+import {predict, findingChart, sexagesimal, skyTrack} from './finder-model.mjs?v=3';
 
 function surveyImage(url, signal) {
   return new Promise((resolve, reject) => {
@@ -42,16 +42,15 @@ function mount(root) {
   const point = result.querySelector('.finder-source');
   const data = JSON.parse(root.closest('.path-orbit-panel').querySelector('.orbit-data').textContent);
   let pending;
-  function showMarker(show) {
-    marker.setAttribute('aria-pressed', String(show));
-    cross.hidden = !show;
+  const pathButton = result.querySelector('.finder-path');
+  const trackLayer = frame.querySelector('.finder-track');
+  for (const [button,overlay] of [[marker,cross],[planet,point],[pathButton,trackLayer]]) {
+    button.addEventListener('click', () => {
+      const show = button.getAttribute('aria-pressed') !== 'true';
+      button.setAttribute('aria-pressed', String(show));
+      overlay.toggleAttribute('hidden', !show);
+    });
   }
-  function showPlanet(show) {
-    planet.setAttribute('aria-pressed', String(show));
-    point.hidden = !show;
-  }
-  planet.addEventListener('click', () => showPlanet(point.hidden));
-  marker.addEventListener('click', () => showMarker(cross.hidden));
   form.addEventListener('submit', async event => {
     event.preventDefault();
     nearby.unobserve(root);

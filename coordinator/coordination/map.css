@@ -186,7 +186,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .orbit-tools button { color: #e3eff7; border: 1px solid #49616f; border-radius: .25rem; background: #152832; min-width: 2rem; min-height: 2rem; font: var(--detail-type)/1.45 var(--sans); cursor: pointer; padding: .25rem .45rem; }
 .orbit-view[aria-busy=true] canvas { cursor: progress; }
 .orbit-tools button:disabled { opacity: .55; cursor: progress; }
-@media (max-width: 24rem) {
+@media (max-width: 27rem) {
   .orbit-frame:has([data-reset]:not([hidden])) .trial-key { top: 3rem; }
 }
 .orbit-tools button:hover { background: #294352; }
@@ -225,16 +225,16 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .sky-finder { max-width: var(--figure-measure); margin: .2rem 0 1rem; border-bottom: 1px solid var(--rule); padding-bottom: .75rem; }
 .finder-form, .finder-controls { display: flex; align-items: end; flex-wrap: wrap; gap: .5rem .8rem; }
 .finder-form label { display: grid; min-width: 0; gap: .18rem; font: var(--detail-type)/1.45 var(--sans); }
-.finder-form input, .finder-form select, .finder-form button, .finder-marker, .finder-planet { box-sizing: border-box; max-width: 100%; min-height: 2.2rem; border: 1px solid var(--rule); border-radius: .3rem; padding: .25rem .5rem; background: var(--map-frame); color: inherit; font: var(--detail-type)/1.45 var(--sans); }
-.finder-form button, .finder-marker, .finder-planet { cursor: pointer; }
+.finder-form input, .finder-form select, .finder-form button, .finder-controls button { box-sizing: border-box; max-width: 100%; min-height: 2.2rem; border: 1px solid var(--rule); border-radius: .3rem; padding: .25rem .5rem; background: var(--map-frame); color: inherit; font: var(--detail-type)/1.45 var(--sans); }
+.finder-form button, .finder-controls button { cursor: pointer; }
 .finder-form button { color: #f4f8fa; background: #193746; border-color: #193746; }
 .finder-coordinates, .finder-status, .finder-result figcaption, .finder-controls { font: var(--detail-type)/1.45 var(--sans); }
 .finder-coordinates, .finder-status { margin: .55rem 0; }
 .finder-coordinates { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .finder-position { display: flex; flex-wrap: wrap; column-gap: .85rem; }
 .finder-track { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.finder-track path { fill: none; stroke: #ffbd77; stroke-opacity: .68; stroke-width: .8px; stroke-linecap: round; stroke-linejoin: round; }
-.finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden] { display: none; }
+.finder-track path { fill: none; stroke: #ffbd77; stroke-opacity: .57; stroke-width: .8px; stroke-linecap: round; stroke-linejoin: round; }
+.finder-status:empty, .finder-coordinates:empty, .finder-result[hidden], .finder-cross[hidden], .finder-source[hidden], .finder-track[hidden] { display: none; }
 .finder-result { margin: .4rem 0 0; }
 .finder-frame { position: relative; background: #0c1820; overflow: hidden; border-radius: .4rem; aspect-ratio: 1; }
 .finder-result[aria-busy=true] .finder-frame > *,
@@ -254,3 +254,5 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .finder-controls { justify-content: flex-start; gap: .35rem .5rem; }
 .finder-controls .finder-scale { margin-left: auto; }
 .finder-planet[aria-pressed=true] { color: #fff; background: #193746; border-color: #193746; }
+.finder-path::before { content: ""; display: inline-block; width: .85rem; height: 1px; margin-right: .35rem; vertical-align: middle; background: currentColor; }
+.finder-path[aria-pressed=true] { color: #ffbd77; background: #193746; border-color: #334753; }
