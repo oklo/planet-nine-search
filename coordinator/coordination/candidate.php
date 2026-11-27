@@ -138,7 +138,7 @@ foreach ($themes as $theme):
 <a class="figure-<?= $theme ?>" href="<?= $src ?>"><img width="<?= (int)$figureWidth ?>" height="<?= (int)$figureHeight ?>" loading="lazy" src="<?= $src ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a>
 <?php endforeach; ?></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
-<?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
+<?php if ($note): ?><p>Do these images persuade you that TESS detected a viable Planet Nine candidate?</p><?php endif; ?>
 <form method="post" class="candidate-votes" action="?field=<?= $code ?>">
 <input type="hidden" name="candidate" value="<?= $id ?>">
 <?php foreach (['yes' => 'Compelling', 'maybe' => 'Maybe', 'no' => 'Not compelling'] as $key => $label): ?>
