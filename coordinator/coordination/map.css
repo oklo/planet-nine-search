@@ -144,6 +144,7 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .path-evidence { margin: 1.5rem 0 3rem; border-top: 1px solid var(--rule); }
 .path-columns { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: clamp(1.25rem, 3vw, 3rem); }
 .path-assets, .path-orbit-panel { min-width: 0; }
+.path-evidence > h3, .path-assets > p { font-family: var(--sans); }
 .path-assets > p:first-child { margin-top: .3rem; }
 .evidence-page .site-main > p { margin: 0 0 .6rem; }
 .evidence-page section h3 { margin: .75rem 0 .4rem; }
