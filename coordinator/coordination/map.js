@@ -53,7 +53,7 @@ async function showCandidates(container) {
     for (const {field, number, title} of rows) {
       const item = textNode('li', '', list);
       const link = textNode('a', field + ' · Path ' + number, item);
-      link.href = 'candidate.php?field=' + encodeURIComponent(field) + '#candidate-' + number;
+      link.href = 'candidate.php?field=' + encodeURIComponent(field) + '&candidate=' + encodeURIComponent(number) + '#candidate-' + number;
       if (title) textNode('small', title, item);
     }
     container.replaceChildren(list);
@@ -529,7 +529,7 @@ async function initialize() {
     data.physical_followup_flags = data.fields.reduce((n, f) => n + (f.state === 'needs_followup' ? f.candidate_count : 0), 0);
     $('snapshot-time').textContent = `${new Date(data.updated_utc).toLocaleString('en-GB', {day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'})} UTC`;
     $('searched-count').textContent = data.searched_fields;
-    $('followup-count').textContent = data.fields.filter(f => f.state === 'needs_followup' && f.candidate_count > 0).length;
+    $('followup-count').textContent = data.physical_followup_flags;
     displayRecovery(false);
     for (const [state, info] of Object.entries(STATES)) {
       if (state === 'unsearchable' && !data.field_counts[state]) continue;
