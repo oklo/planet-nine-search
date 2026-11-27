@@ -131,10 +131,11 @@ function sexagesimal(float $degrees, bool $hours): string {
 <?php if ($note): ?><p><?= htmlspecialchars($note['text']) ?></p><?php endif; ?>
 <?php if (is_file("$dir/$code-$id.png")): ?>
 <figure class="candidate-figure">
-<?php $themes = is_file("$dir/$code-$id-dark.png") ? ['light', 'dark'] : ['default'];
+<?php [$figureWidth, $figureHeight] = getimagesize("$dir/$code-$id.png");
+$themes = is_file("$dir/$code-$id-dark.png") ? ['light', 'dark'] : ['default'];
 foreach ($themes as $theme):
     $src = "?field=$code&amp;image=$id" . ($theme === 'dark' ? '&amp;theme=dark' : ''); ?>
-<a class="figure-<?= $theme ?>" href="<?= $src ?>"><img loading="lazy" src="<?= $src ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a>
+<a class="figure-<?= $theme ?>" href="<?= $src ?>"><img width="<?= (int)$figureWidth ?>" height="<?= (int)$figureHeight ?>" loading="lazy" src="<?= $src ?>" alt="TESS sector measurements for <?= $code ?> candidate <?= $id ?>"></a>
 <?php endforeach; ?></figure>
 <?php else: ?><p>Sector figures are being prepared.</p><?php endif; ?>
 <?php if ($note): ?><p>Do these images persuade you that TESS saw the same moving object?</p><?php endif; ?>
