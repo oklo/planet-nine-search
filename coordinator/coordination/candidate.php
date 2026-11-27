@@ -116,7 +116,7 @@ function sexagesimal(float $degrees, bool $hours): string {
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex"><title><?= $code ?> · planet nine</title>
-<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=42">
+<link rel="stylesheet" href="/wp-content/themes/oklo/style.css"><link rel="stylesheet" href="map.css?v=43">
 <script type="module" src="orbit-view.mjs?v=4"></script>
 <script type="module" src="sky-finder.mjs?v=5"></script></head>
 <body class="evidence-page"><header class="site-header"><div class="band"><h1 class="site-title"><a href="./">planet nine</a></h1><p class="site-description">TESS / search coordination</p></div></header>
@@ -147,6 +147,8 @@ foreach ($themes as $theme):
 <div class="path-orbit-panel">
 <?php $orbit = $pathEstimates[$code][$id] ?? null; if ($orbit):
     $radius = $orbit['radius'] ?? null;
+    $tessMagnitude = $orbit['T'] ?? null;
+    $visualMagnitude = is_numeric($tessMagnitude) ? (float)$tessMagnitude + 0.5 : null;
     $mass = is_numeric($radius) && $radius >= 1 && $radius <= 6.61 ? 3 * $radius : null;
     $day = $daily[$code] ?? [];
     $sky = $day['paths'][$id] ?? null;
@@ -164,7 +166,8 @@ foreach ($themes as $theme):
 <div class="finder-frame"><img alt="Digitized Sky Survey image centered on the trial prediction">
 <svg class="finder-track" viewBox="0 0 100 100" aria-hidden="true" focusable="false"></svg>
 <span class="finder-box" aria-hidden="true"></span><span class="finder-source" aria-hidden="true"></span><span class="finder-cross" aria-hidden="true"></span>
-<span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span></div>
+<span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span>
+<span class="finder-magnitude" title="Estimated from the TESS photometry using V − T = 0.5"><?= $visualMagnitude === null ? 'V unavailable' : 'V ≈ ' . estimate($visualMagnitude, 1) ?></span></div>
 <div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="true">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><button type="button" class="finder-path" aria-pressed="true">Sky path</button><span class="finder-scale"></span></div>
 <figcaption>Archival Digitized Sky Survey image. The amber trail shows the year leading up to the observation. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
 </figure></div>

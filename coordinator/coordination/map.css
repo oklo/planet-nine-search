@@ -245,6 +245,8 @@ button[aria-pressed="true"] { color: var(--accent); background: var(--code-bg); 
 .finder-box { width: var(--box-side); aspect-ratio: 1; border: 1px dashed #a8e4ee; box-shadow: 0 0 0 1px #15252e88; }
 .finder-cross { width: 32px; height: 32px; color: #ffe45b; filter: drop-shadow(0 0 1px #231c00); background: linear-gradient(currentColor,currentColor) left center / 11px 2px no-repeat, linear-gradient(currentColor,currentColor) right center / 11px 2px no-repeat, linear-gradient(currentColor,currentColor) center top / 2px 11px no-repeat, linear-gradient(currentColor,currentColor) center bottom / 2px 11px no-repeat; }
 .finder-orientation { position: absolute; top: .45rem; left: .45rem; border-radius: .2rem; background: #09141dcc; color: white; padding: .15rem .35rem; font: .72rem var(--sans); }
+.finder-magnitude { position: absolute; top: .45rem; right: .45rem; padding: .16rem .4rem; border-radius: .2rem; background: rgb(55 55 55 / 78%); color: #fff; font: 500 var(--detail-type)/1.35 var(--sans); font-variant-numeric: tabular-nums; }
+
 .finder-controls { align-items: center; justify-content: space-between; margin: .4rem 0; }
 .finder-marker::before { content: '+'; display: inline-block; margin-right: .35rem; font-weight: 700; }
 .finder-marker[aria-pressed=true] { background: #122730; color: #ffe45b; border-color: #334753; }
