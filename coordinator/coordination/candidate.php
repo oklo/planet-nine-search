@@ -169,7 +169,7 @@ foreach ($themes as $theme):
 <span class="finder-orientation" aria-hidden="true">N ↑ · E ←</span>
 <span class="finder-magnitude" title="Estimated from the TESS photometry using V − T = 0.5"><?= $visualMagnitude === null ? 'V unavailable' : 'V ≈ ' . estimate($visualMagnitude, 1) ?></span></div>
 <div class="finder-controls"><button type="button" class="finder-planet" aria-pressed="true">Simulated planet</button><button type="button" class="finder-marker" aria-pressed="true">Predicted position</button><button type="button" class="finder-path" aria-pressed="true">Sky path</button><span class="finder-scale"></span></div>
-<figcaption>Archival Digitized Sky Survey image. The amber trail shows the year leading up to the observation. <a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a></figcaption>
+<figcaption><a href="https://alasky.cds.unistra.fr/hips-image-services/hips2fits">CDS HiPS2FITS</a> · Amber trail shows one year's sky motion</figcaption>
 </figure></div>
 <div class="orbit-view" aria-busy="true">
 <div class="orbit-plate"><div class="orbit-frame"><canvas tabindex="0" aria-label="Solar system and trial path <?= $id ?>. Arrow keys rotate, plus and minus zoom.">Interactive orbit diagram</canvas>
