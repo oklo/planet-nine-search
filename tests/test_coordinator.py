@@ -945,3 +945,45 @@ def test_ranged_fields_require_worker_support(coordinator):
         participant[0],
     )
     assert capable.json()["task"] == task
+
+
+def test_ram_admission_and_recovery_across_lease_changes(coordinator):
+    large = seed(coordinator, 1, priority=3)
+    small = seed(coordinator, 2, priority=2)
+    seed(coordinator, 3, priority=4)  # Newly staged, awaiting a profile
+    sql = coordinator[1]
+    for task, size in ((large, 12), (small, 4)):
+        sql("INSERT INTO settings VALUES(?,?)", ["ram-v1:" + task["task_id"], size])
+    pending = requests.get(coordinator[0], params={"action": "status"}, timeout=5).json()[
+        "queue_fields"
+    ]["pending"]
+    assert {row["task_id"]: row.get("estimated_memory_bytes") for row in pending} == {
+        large["task_id"]: 12,
+        small["task_id"]: 4,
+        f"{3:064x}": None,
+    }
+    first, second = worker(coordinator), worker(coordinator)
+
+    def claim_ram(pair, amount):
+        return call(
+            coordinator,
+            "claim",
+            {
+                "protocol": "tess-gaia-hough-v2",
+                "available_bytes": 1000,
+                "lease_token": pair[1],
+                "memory_bytes": amount,
+            },
+            pair[0],
+        ).json()["task"]
+
+    assert claim_ram(first, 8) == small
+    body = {"lease_token": first[1], "task_id": small["task_id"], "memory_limit_bytes": 8}
+    assert call(coordinator, "release", body, first[0]).json()["memory_deferred"]
+    assert claim_ram(first, 8) is None
+    assert claim_ram(second, 4) == small
+    assert call(coordinator, "release", body, first[0]).json()["memory_deferred"]
+    assert claim_ram(second, 4) == small
+    assert sql("SELECT SUM(strikes) FROM workers") == [(0,)]
+    assert sql("SELECT SUM(failures) FROM tasks") == [(0,)]
+    assert claim_ram(first, 12) == large

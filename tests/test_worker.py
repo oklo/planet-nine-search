@@ -367,7 +367,8 @@ def test_lost_ack_retries_identical_evidence_after_pixels_are_removed(tmp_path):
 
 
 @pytest.mark.parametrize(
-    "code,recoverable,delay", [(73, True, 300), (69, True, 60), (75, False, None), (1, False, None)]
+    "code,recoverable,delay",
+    [(73, True, 300), (69, True, 60), (76, True, None), (75, False, None), (1, False, None)],
 )
 def test_mid_search_recovery_is_limited_to_capacity_and_transport(
     tmp_path, monkeypatch, capsys, code, recoverable, delay
@@ -412,12 +413,14 @@ def test_mid_search_recovery_is_limited_to_capacity_and_transport(
                     "spec_sha256": hashlib.sha256(canonical(spec).encode()).hexdigest(),
                 }
             if action == "release":
-                if recoverable:
+                if recoverable and code != 76:
                     assert not list(tmp_path.rglob("*.npy"))
                 releases.append(body)
                 if recoverable and len(releases) == 1:
                     raise requests.Timeout("release acknowledgement unavailable")
-                return {"released": True}
+                if code == 76:
+                    assert body["memory_limit_bytes"] > 0
+                return {"released": True, "memory_deferred": code == 76}
             pytest.fail("An interrupted search must never submit")
 
     class Child:
@@ -438,7 +441,7 @@ def test_mid_search_recovery_is_limited_to_capacity_and_transport(
         worker.work(args, DiskBudget(tmp_path, 2**30, 0))
     assert actions.count("register") == 1
     assert releases[0]["failed"] is (not recoverable)
-    assert waits == ([60, delay] if recoverable else [])
+    assert waits == ([60] if code == 76 else [60, delay] if recoverable else [])
     assert capsys.readouterr().out == ""
     if not recoverable:
         assert list(tmp_path.rglob("*.npy"))

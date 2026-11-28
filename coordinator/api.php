@@ -32,11 +32,14 @@ function dispatch(PDO $db, string $action, array $body): array
             $counts[$state] = (int) $count;
         }
         $queues = ["pending" => [], "leased" => [], "submitted" => []];
-        foreach (query($db, "SELECT id,spec,state,started FROM tasks WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
+        foreach (query($db, "SELECT id,spec,state,started,profile.value AS memory_bytes FROM tasks LEFT JOIN settings profile ON profile.key='ram-v1:'||tasks.id WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
             $task = json_decode($row["spec"], true, 32, JSON_THROW_ON_ERROR);
             [$minimum, $maximum] = $task["policy"]["distance_au"] ?? [200, 1500];
             $label = preg_replace('/\s+\d+\s*[-–—]\s*\d+\s*au\s*$/iu', '', $task["label"] ?? $row["id"]);
             $field = ["task_id" => $row["id"], "label" => "$label {$minimum}–{$maximum} au"];
+            if ($row["memory_bytes"] !== null) {
+                $field["estimated_memory_bytes"] = (int) $row["memory_bytes"];
+            }
             if ($row["state"] === "leased") {
                 $field["started"] = (int) $row["started"];
             }
@@ -101,6 +104,13 @@ function dispatch(PDO $db, string $action, array $body): array
             if (!is_int($budget) || $budget < 1) {
                 abort_request(400, "Positive available_bytes required");
             }
+            $memory = $body["memory_bytes"] ?? null;
+            if ($memory !== null && (!is_int($memory) || $memory < 1)) {
+                abort_request(400, "Positive memory_bytes required");
+            }
+            // Older managed workers can have an operator-configured RAM budget.
+            $memory ??= (int) query($db, "SELECT value FROM settings WHERE key=?",
+                ["worker-ram:" . $worker["id"]])->fetchColumn();
             $job = query(
                 $db,
                 "SELECT * FROM tasks WHERE state='leased' AND worker_id=?",
@@ -119,8 +129,13 @@ function dispatch(PDO $db, string $action, array $body): array
                          AND (CAST(? AS INTEGER)=1 OR json_type(spec,'$.policy.distance_au') IS NULL) AND NOT EXISTS
                          (SELECT 1 FROM events e WHERE e.worker_id=? AND e.task_id=tasks.id AND e.action='field_data_failure'
                           AND e.id>COALESCE((SELECT MAX(id) FROM events WHERE task_id=tasks.id AND action='operator_retry'),0))
+                         AND (CAST(? AS INTEGER)=0 OR EXISTS
+                         (SELECT 1 FROM settings WHERE key='ram-v1:'||tasks.id AND CAST(value AS INTEGER)<=CAST(? AS INTEGER)))
+                         AND NOT EXISTS (SELECT 1 FROM events e WHERE e.worker_id=? AND e.task_id=tasks.id
+                         AND e.action='memory_limit' AND CAST(e.detail AS INTEGER)>=CAST(? AS INTEGER))
                          ORDER BY priority DESC,id LIMIT 1",
-                    [$budget, ($body["field_distance_range"] ?? false) === true ? 1 : 0, $worker["id"]],
+                    [$budget, ($body["field_distance_range"] ?? false) === true ? 1 : 0, $worker["id"],
+                     $memory, $memory, $worker["id"], $memory],
                 )->fetch(PDO::FETCH_ASSOC);
                 if (!$job) {
                     $fits = query($db, "SELECT 1 FROM tasks WHERE state='pending' AND required_bytes<=? LIMIT 1", [$budget])->fetchColumn();
@@ -155,6 +170,18 @@ function dispatch(PDO $db, string $action, array $body): array
                 "lease_seconds" => $seconds,
             ];
         }
+        if ($action === "release" && array_key_exists("memory_limit_bytes", $body)) {
+            $limit = $body["memory_limit_bytes"];
+            if (!is_int($limit) || $limit < 1) {
+                abort_request(400, "Invalid memory limit");
+            }
+            $memoryRelease = $limit . ":" . secret_hash($body["lease_token"] ?? "");
+            if (query($db, "SELECT 1 FROM events WHERE action='memory_limit' AND worker_id=?
+                    AND task_id=? AND detail=? LIMIT 1",
+                [$worker["id"], $body["task_id"] ?? "", $memoryRelease])->fetchColumn()) {
+                return ["released" => true, "memory_deferred" => true];
+            }
+        }
         $job = active_lease($db, $worker, $body);
         $encoded = json_encode(
             $body["result"] ?? null,
@@ -185,6 +212,11 @@ function dispatch(PDO $db, string $action, array $body): array
                 0,
                 500,
             );
+            if (isset($memoryRelease)) {
+                event($db, "memory_limit", $worker["id"], $job["id"], $memoryRelease);
+                requeue($db, $job["id"], $reason);
+                return ["released" => true, "memory_deferred" => true];
+            }
             if (($body["field_data_failure"] ?? false) === true && !empty($body["failed"])) {
                 event($db, "field_data_failure", $worker["id"], $job["id"], $reason);
                 $count = (int) query($db, "SELECT COUNT(DISTINCT task_id) FROM events
