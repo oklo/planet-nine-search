@@ -8,16 +8,18 @@ import sys
 import time
 from pathlib import Path
 
+import psutil
 import requests
 
 from .client import Client, CoordinatorError
 from .diagnostics import BoundedOutput, State
 from .evidence import pack
-from .limits import FieldDataError
+from .limits import FieldDataError, ResidentMemoryLimit, worker_memory_gib
 from .network import TransportError
 from .provenance import installed_dependencies
 from .retention import discard_interrupted, maintain, release_pixels
 from .storage import (
+    GIB,
     DirectoryLock,
     DiskCapacityError,
     canonical,
@@ -99,6 +101,9 @@ def work(args, budget):
 
 def _work(args, budget, credentials, state):
     installed_dependencies()
+    if args.max_memory_gb is None:
+        args.max_memory_gb = worker_memory_gib(psutil.virtual_memory().total)
+    memory_bytes = int(args.max_memory_gb * GIB)
     root = Path(args.directory).resolve()
     client = Client(args.coordinator, credentials)
     state("connecting", "Registering the existing worker identity.")
@@ -145,6 +150,7 @@ def _work(args, budget, credentials, state):
                     "protocol": PROTOCOL,
                     "available_bytes": budget.available(),
                     "field_distance_range": True,
+                    "memory_bytes": memory_bytes,
                     "lease_token": client.credentials["lease_token"],
                 },
             )
@@ -253,6 +259,8 @@ def _work(args, budget, credentials, state):
                                 )
                             next_heartbeat = time.monotonic() + 60
                         time.sleep(2)
+                    if child.returncode == 76:
+                        raise ResidentMemoryLimit("Search exceeded its resident-memory cap")
                     if child.returncode == 65:
                         raise FieldDataError(
                             f"Field lacks usable data; inspect {folder / 'worker.log'}"
@@ -280,6 +288,8 @@ def _work(args, budget, credentials, state):
                 failed=not (recoverable or isinstance(error, KeyboardInterrupt)),
                 reason=str(error)[:1024],
             )
+            if isinstance(error, ResidentMemoryLimit):
+                body.update(failed=False, memory_limit_bytes=memory_bytes)
             if isinstance(error, FieldDataError):
                 body["field_data_failure"] = True
                 write_json(
@@ -289,7 +299,8 @@ def _work(args, budget, credentials, state):
             try:
                 reply = retry_request(
                     lambda: client.request("release", body),
-                    args.continuous and (recoverable or isinstance(error, FieldDataError)),
+                    args.continuous
+                    and (recoverable or isinstance(error, (FieldDataError, ResidentMemoryLimit))),
                     state,
                 )
                 client.clear_claim()
@@ -300,6 +311,13 @@ def _work(args, budget, credentials, state):
                     raise
             except requests.RequestException:
                 pass  # A stopped worker's unreachable lease will expire.
+            if isinstance(error, ResidentMemoryLimit) and reply.get("memory_deferred"):
+                if not keep_data:
+                    with DirectoryLock(root, "retention.lock"), DirectoryLock(root, "search.lock"):
+                        discard_interrupted(folder)
+                if args.continuous:
+                    continue
+                return
             if (
                 isinstance(error, FieldDataError)
                 and args.continuous

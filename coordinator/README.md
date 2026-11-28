@@ -123,3 +123,11 @@ reviews before upgrading a pinned replay environment.
 Stop the outgoing supplier, reviewer and publisher. Read `php admin.php operator-status` and reconcile the last reviewed result and snapshot digest with the incoming host. Set `P9_OPERATOR_FENCE` to a fresh private 64-character hex token on the incoming operator. Run `php admin.php operator-claim HOST LAST_REVIEW SNAPSHOT_SHA256` with the reconciled values. Renew with `operator-renew` at least every five minutes. Release with `operator-release` after stopping writes.
 
 After first enrollment the coordinator requires the current token for enqueue, requeue, review-plan and acceptance. Expiry leaves those operations closed until another claim. Workers continue claiming and returning fields. Website publication still needs its snapshot digest check.
+
+### Field memory profiles
+
+Run `python3 profile_memory.py /path/to/queue.sqlite /path/to/fields` after publishing bundles or from a minute cron. The profiler verifies each local bundle against the frozen task digest and stores a scheduling estimate for pending and leased fields. Repeated runs only inspect new fields. Keep both paths on the coordinator host. A missing or invalid bundle stays ineligible for RAM-aware workers until profiled.
+
+The estimate uses the 140 × 140 stamp, cadence count, in-stamp stellar templates, detector and Gaia columns, and overlapping sector fits. The initial model includes 50% headroom. It is a scheduling estimate for the full search, including refits, and can overestimate fields that finish at quality screening. Worker logs report sampled peak RSS for comparison.
+
+RAM-aware claims send `memory_bytes`. Operators can set the same cap for an older managed worker in `settings` under `worker-ram:<authenticated worker id>`, in bytes. Unconfigured older clients retain their existing claim behavior. A confirmed memory exit defers that field for the reporting worker at the same or a smaller allocation. Other workers can still claim it if it fits their budget.
