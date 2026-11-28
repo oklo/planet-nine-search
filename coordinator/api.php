@@ -32,11 +32,14 @@ function dispatch(PDO $db, string $action, array $body): array
             $counts[$state] = (int) $count;
         }
         $queues = ["pending" => [], "leased" => [], "submitted" => []];
-        foreach (query($db, "SELECT id,spec,state,started FROM tasks WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
+        foreach (query($db, "SELECT id,spec,state,started,profile.value AS memory_bytes FROM tasks LEFT JOIN settings profile ON profile.key='ram-v1:'||tasks.id WHERE state IN ('pending','leased','submitted') ORDER BY priority DESC,started,id") as $row) {
             $task = json_decode($row["spec"], true, 32, JSON_THROW_ON_ERROR);
             [$minimum, $maximum] = $task["policy"]["distance_au"] ?? [200, 1500];
             $label = preg_replace('/\s+\d+\s*[-–—]\s*\d+\s*au\s*$/iu', '', $task["label"] ?? $row["id"]);
             $field = ["task_id" => $row["id"], "label" => "$label {$minimum}–{$maximum} au"];
+            if ($row["memory_bytes"] !== null) {
+                $field["estimated_memory_bytes"] = (int) $row["memory_bytes"];
+            }
             if ($row["state"] === "leased") {
                 $field["started"] = (int) $row["started"];
             }

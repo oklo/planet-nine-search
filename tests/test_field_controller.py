@@ -73,3 +73,9 @@ def test_publication_retries_transport_and_holds_changed_hash():
     assert first["retry_after_epoch"] == 120
     assert publication_failure(OSError(), (ValueError,), first, 120)["retry_after_epoch"] == 160
     assert publication_failure(ValueError("digest"), (ValueError,), first, 120)["state"] == "held"
+
+
+def test_unmatched_fields_do_not_fill_the_local_ready_reserve():
+    adapter = site(ready=100, accepted=5)
+    adapter.counts.return_value["eligible_pending"] = 2
+    assert distributed_cycle(adapter)["mode"] == "route_added"

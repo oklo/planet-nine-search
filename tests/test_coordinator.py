@@ -954,6 +954,14 @@ def test_ram_admission_and_recovery_across_lease_changes(coordinator):
     sql = coordinator[1]
     for task, size in ((large, 12), (small, 4)):
         sql("INSERT INTO settings VALUES(?,?)", ["ram-v1:" + task["task_id"], size])
+    pending = requests.get(coordinator[0], params={"action": "status"}, timeout=5).json()[
+        "queue_fields"
+    ]["pending"]
+    assert {row["task_id"]: row.get("estimated_memory_bytes") for row in pending} == {
+        large["task_id"]: 12,
+        small["task_id"]: 4,
+        f"{3:064x}": None,
+    }
     first, second = worker(coordinator), worker(coordinator)
 
     def claim_ram(pair, amount):

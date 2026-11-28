@@ -24,7 +24,7 @@ def supply_cycle(site):
     """Advance at most one field or geometry plan per acquisition of the producer lock."""
     site.maintain()
     counts = site.counts()
-    ready = counts["pending"]
+    ready = counts.get("eligible_pending", counts["pending"])
     if ready >= READY_TARGET or (
         ready >= READY_RESERVE and counts.get("submitted", 0) >= REVIEW_BACKLOG
     ):
