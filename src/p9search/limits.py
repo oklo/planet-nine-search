@@ -19,7 +19,7 @@ class ResidentMemoryLimit(RuntimeError):
 
 
 def check_process(pid, started, memory_bytes, seconds):
-    if time.monotonic() - started > seconds:
+    if seconds is not None and time.monotonic() - started > seconds:
         raise RuntimeError("Search runtime limit exceeded")
     try:
         process = psutil.Process(pid)
@@ -36,7 +36,7 @@ def check_process(pid, started, memory_bytes, seconds):
 
 class ResourceGuard:
     def __init__(self, memory_bytes, seconds):
-        if not memory_bytes > 0 or not seconds > 0:
+        if not memory_bytes > 0 or (seconds is not None and not seconds > 0):
             raise ValueError("Positive memory and runtime limits required")
         self.memory, self.seconds = memory_bytes, seconds
         self.done = threading.Event()

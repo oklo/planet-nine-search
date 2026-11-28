@@ -29,6 +29,21 @@ def test_worker_uses_host_memory_unless_overridden(tmp_path, monkeypatch, host_g
     assert limits == [(expected, 2), (3.5, 1)]
 
 
+def test_runtime_limit_is_optional_for_workers_and_memory_is_still_enforced():
+    import os
+    import time
+
+    from p9search.cli import parser
+    from p9search.limits import ResidentMemoryLimit, check_process
+
+    commands = parser()
+    assert commands.parse_args(["worker"]).max_hours is None
+    assert commands.parse_args(["worker", "--max-hours", "2.5"]).max_hours == 2.5
+    assert commands.parse_args(["run", "task.json", "--max-hours", "none"]).max_hours is None
+    with pytest.raises(ResidentMemoryLimit):
+        check_process(os.getpid(), time.monotonic() - 86400, 1, None)
+
+
 def test_stopping_a_search_waits_for_actual_process_exit():
     child = subprocess.Popen(
         [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True

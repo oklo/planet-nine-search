@@ -219,7 +219,7 @@ def _work(args, budget, credentials, state):
                         "--max-memory-gb",
                         str(args.max_memory_gb),
                         "--max-hours",
-                        str(args.max_hours),
+                        "none" if args.max_hours is None else str(args.max_hours),
                     ]
                     for origin in args.bundle_origin:
                         command.extend(["--bundle-origin", origin])

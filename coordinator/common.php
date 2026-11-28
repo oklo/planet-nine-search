@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 const PROTOCOL = "tess-gaia-hough-v2";
 const LEASE_SECONDS = 1800;
-const MAX_LEASE_SECONDS = 21600;
 
 function database_path(): string
 {
@@ -148,13 +147,6 @@ function active_lease(PDO $db, array $worker, array $body): array
 
 function renew(PDO $db, array $job): int
 {
-    $expires = min(
-        time() + LEASE_SECONDS,
-        (int) $job["started"] + MAX_LEASE_SECONDS,
-    );
-    if ($expires <= time()) {
-        abort_request(409, "Absolute lease lifetime exceeded");
-    }
-    query($db, "UPDATE tasks SET expires=? WHERE id=?", [$expires, $job["id"]]);
-    return $expires - time();
+    query($db, "UPDATE tasks SET expires=? WHERE id=?", [time() + LEASE_SECONDS, $job["id"]]);
+    return LEASE_SECONDS;
 }

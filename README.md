@@ -34,7 +34,8 @@ Use `--verbose` for state-change messages or
 Continuous workers retry queue, disk and temporary network waits.
 Unknown errors, integrity failures, and memory/runtime overruns stop for diagnosis.
 Use `p9 status` for queue counts and `p9 --help` for commands. The worker uses
-two CPU threads and allows four hours per field. Its default resident-memory
+two CPU threads. Active workers renew their leases by heartbeat until the field is done.
+Use `--max-hours` to set a time budget. Its default resident-memory
 limit is 60% of physical RAM, rounded down to whole GiB, from 1 to 12 GiB.
 That gives a 4 GiB limit on an 8 GB Mac, 9 GiB on a 16 GB Mac, and 12 GiB
 on a 32 GB Mac. Some fields can exceed the smaller limits. To set your own

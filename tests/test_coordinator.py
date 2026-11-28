@@ -395,13 +395,22 @@ def test_review_delay_preserves_results_and_worker_access(coordinator):
     assert first["task_id"] != second["task_id"]
 
 
-def test_absolute_lease_cannot_be_renewed_forever(coordinator):
+def test_live_heartbeats_keep_an_old_lease_exclusive_until_submission(coordinator):
     task = seed(coordinator)
-    pair = worker(coordinator)
-    claim(coordinator, pair)
-    coordinator[1]("UPDATE tasks SET started=?", [int(time.time()) - 21601])
+    pair, waiting = worker(coordinator), worker(coordinator)
+    original = claim(coordinator, pair).json()
     body = {"task_id": task["task_id"], "lease_token": pair[1]}
-    assert call(coordinator, "heartbeat", body, pair[0]).status_code == 409
+    started = int(time.time()) - 3 * 86400
+    coordinator[1]("UPDATE tasks SET started=?, expires=?", [started, int(time.time()) + 120])
+    for _ in range(2):
+        now = int(time.time())
+        assert call(coordinator, "heartbeat", body, pair[0]).json() == {"lease_seconds": 1800}
+        since, expiry, attempts = coordinator[1]("SELECT started,expires,attempts FROM tasks")[0]
+        assert since == started and expiry >= now + 1800 and attempts == 1
+        assert claim(coordinator, waiting).json()["task"] is None
+    assert claim(coordinator, pair).json()["task"] == task
+    result = {**task, "spec_sha256": original["spec_sha256"], "state": "searched"}
+    assert call(coordinator, "submit", {**body, "result": result}, pair[0]).json()["accepted"]
 
 
 def test_revocation_rotation_and_requeue_preserve_history(coordinator):

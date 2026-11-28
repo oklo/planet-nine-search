@@ -22,7 +22,7 @@ from `https://oklo.org` unless given another trusted `--bundle-origin`.
 Registration is automatic. A worker has one active lease and starts its next
 field after its compact result is acknowledged. Claims depend on available
 fields and the worker's disk budget, with no daily or pending-review quota.
-Leases renew for at most six hours; expired leases return to the queue without
+Each heartbeat renews the field for another 30 minutes. An active worker can keep its field until submission. Expired leases return to the queue without
 requiring the worker to register again. Submitted results remain available until
 reviewed. Repeated reported search failures or a demonstrated result inconsistency
 can pause the affected worker for diagnosis. Existing revocations remain in force.
