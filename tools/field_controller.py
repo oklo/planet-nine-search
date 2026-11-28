@@ -25,7 +25,7 @@ def supply_cycle(site):
     site.maintain()
     counts = site.counts()
     ready = counts.get("eligible_pending", counts["pending"])
-    if ready >= READY_TARGET or (
+    if (counts["pending"] >= READY_TARGET and ready >= READY_RESERVE) or (
         ready >= READY_RESERVE and counts.get("submitted", 0) >= REVIEW_BACKLOG
     ):
         return dict(mode="buffered", counts=counts)
