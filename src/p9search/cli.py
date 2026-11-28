@@ -25,6 +25,10 @@ from .storage import (
 )
 
 
+def search_hours(value):
+    return None if value.lower() == "none" else float(value)
+
+
 def parser():
     root = argparse.ArgumentParser(
         description="Search TESS fields with Gaia subtraction and joint-sector Hough accumulation."
@@ -108,7 +112,14 @@ def parser():
             default=24.0 if command is reviewer else None,
             help=f"resident memory limit in GiB (default: {memory_default} GiB)",
         )
-        command.add_argument("--max-hours", type=float, default=4.0)
+        command.add_argument(
+            "--max-hours",
+            type=float if command is reviewer else search_hours,
+            default=None if command is worker else 4.0,
+            help="optional per-field runtime limit in hours"
+            if command is worker
+            else "runtime limit in hours",
+        )
         command.add_argument("--bundle-origin", action="append", default=list(DEFAULT_ORIGINS))
     return root
 
@@ -136,7 +147,14 @@ def execute(args):
             return 0
         if args.max_memory_gb is None:
             args.max_memory_gb = worker_memory_gib(psutil.virtual_memory().total)
-        if not all(math.isfinite(v) and v > 0 for v in (args.max_memory_gb, args.max_hours)):
+        if (
+            not math.isfinite(args.max_memory_gb)
+            or args.max_memory_gb <= 0
+            or (
+                args.max_hours is not None
+                and (not math.isfinite(args.max_hours) or args.max_hours <= 0)
+            )
+        ):
             raise ValueError("Positive finite memory and runtime limits required")
         if args.threads < 1:
             raise ValueError("threads must be positive")
@@ -176,7 +194,10 @@ def execute(args):
         else:
             with (
                 DirectoryLock(args.directory, "search.lock"),
-                ResourceGuard(int(args.max_memory_gb * GIB), args.max_hours * 3600),
+                ResourceGuard(
+                    int(args.max_memory_gb * GIB),
+                    None if args.max_hours is None else args.max_hours * 3600,
+                ),
             ):
                 run(spec, folder, budget, origins=args.bundle_origin)
         return 0

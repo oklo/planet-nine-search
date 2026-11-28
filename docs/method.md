@@ -70,8 +70,7 @@ An 8 GB host is experimental. Apple MPS is
 validated on real data; CPU kernels are covered by numerical tests. CUDA uses
 the PyTorch path and has not yet been validated on hardware. Disk limits apply
 to the chosen work directory, including retained results; dependency installs
-and third-party caches are additional. A watchdog bounds resident memory and
-wall time; accelerator allocations have a separate cap. The worker never deletes old results
+and third-party caches are additional. A watchdog enforces the memory limit and any requested time budget. Accelerator allocations have a separate cap. The worker never deletes old results
 implicitly. Reuse the same directory after interruption to resume checked rows.
 
 The pinned macOS arm64/Python 3.12 environment is in `environments/`;
